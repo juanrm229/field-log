@@ -10,7 +10,7 @@ import sys
 from typing import Dict, List, Any
 
 # Base URL from frontend/.env
-BASE_URL = "https://story-archive-38.preview.emergentagent.com/api"
+BASE_URL = "https://jalankan-new-db.preview.emergentagent.com/api"
 
 # Studio password for auth
 STUDIO_PASSWORD = "koda3am"
