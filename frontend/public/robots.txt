@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+# The owner's CMS. Nothing here is useful to a search engine, and it should not
+# be advertised. This is not access control — /studio is protected by its own
+# password, not by this file.
+Disallow: /studio
+
+Sitemap: https://field-log-nine.vercel.app/sitemap.xml

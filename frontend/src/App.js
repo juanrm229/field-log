@@ -1,15 +1,19 @@
-import React, { useEffect, useState } from "react";
+import React, { lazy, Suspense, useEffect, useState } from "react";
 import "./App.css";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import BlueprintBackground from "./components/BlueprintBackground";
 import Header from "./components/Header";
 import HomePage from "./pages/HomePage";
-import NotebookView from "./pages/NotebookView";
-import Studio from "./pages/Studio";
-import WallPage from "./pages/WallPage";
-import NowWritingPage from "./pages/NowWritingPage";
-import ArchivePage from "./pages/ArchivePage";
-import NotFound from "./pages/NotFound";
+
+// The desk is the landing page and stays in the main bundle. Everything else is
+// fetched when it is first opened — most visitors never reach Studio at all,
+// and it is the largest page in the app.
+const NotebookView = lazy(() => import("./pages/NotebookView"));
+const Studio = lazy(() => import("./pages/Studio"));
+const WallPage = lazy(() => import("./pages/WallPage"));
+const NowWritingPage = lazy(() => import("./pages/NowWritingPage"));
+const ArchivePage = lazy(() => import("./pages/ArchivePage"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 import InkCursor from "./components/InkCursor";
 import MusicPlayer from "./components/MusicPlayer";
 import { NotebooksProvider } from "./context/NotebooksContext";
@@ -23,6 +27,12 @@ const applyTheme = (theme) => {
 
 // Re-keyed on every path change so the fade replays. Wrapping Routes rather
 // than each page keeps the animation in one place.
+const PageLoading = () => (
+  <main className="min-h-screen flex items-center justify-center">
+    <p className="font-mono-ui text-[11px] tracking-[0.2em] uppercase text-neutral-400 animate-pulse">turning the page…</p>
+  </main>
+);
+
 const RouteFade = ({ children }) => {
   const { pathname } = useLocation();
   return <div key={pathname} className="route-fade">{children}</div>;
@@ -61,6 +71,7 @@ function App() {
           <InkCursor />
           <Header theme={theme} setTheme={setTheme} />
           <RouteFade>
+            <Suspense fallback={<PageLoading />}>
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/notebook/:slug" element={<NotebookView />} />
@@ -70,6 +81,7 @@ function App() {
               <Route path="/studio" element={<Studio />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
           </RouteFade>
           <Footer />
           <MusicPlayer />
