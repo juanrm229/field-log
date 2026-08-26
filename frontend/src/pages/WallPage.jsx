@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { getNotes, submitNote } from "../api";
-import { Plus, StickyNote } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Input } from "../components/ui/input";
-import { Textarea } from "../components/ui/textarea";
 import { Button } from "../components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
+import SubscribeCard from "../components/SubscribeCard";
 
 const COLORS = {
   lemon: "#f8e8a0",
@@ -15,7 +15,21 @@ const COLORS = {
   lilac: "#dccdec",
 };
 
-const NOTE_ROTS = [-3, 2, -1.5, 3, -2.5, 1, -4, 2.5];
+const NOTE_ROTS = [-3.5, 2.5, -1.5, 3.5, -2.5, 1.5, -4, 2];
+const PIN_COLORS = ["#d3232f", "#2f5d43", "#3b66a8", "#e8b04b", "#8a5a33"];
+
+const Pin = ({ color }) => (
+  <svg viewBox="0 0 24 30" className="w-5 h-6 absolute -top-[13px] left-1/2 -translate-x-1/2 z-10 drop-shadow-md" aria-hidden="true">
+    <ellipse cx="12" cy="27" rx="2.4" ry="1.1" fill="rgba(0,0,0,0.3)" />
+    <rect x="11.2" y="13" width="1.6" height="13" fill="#9aa2ad" />
+    <circle cx="12" cy="8" r="7" fill={color} />
+    <circle cx="9.4" cy="5.4" r="2.3" fill="rgba(255,255,255,0.45)" />
+  </svg>
+);
+
+const Tape = () => (
+  <span className="absolute -top-[10px] left-1/2 -translate-x-1/2 w-14 h-5 bg-[#f94b0c]/20 border-x-2 border-dashed border-[#f94b0c]/25 rotate-[-4deg] z-10" aria-hidden="true" />
+);
 
 const WallPage = () => {
   const [notes, setNotes] = useState(null);
@@ -44,41 +58,82 @@ const WallPage = () => {
 
   return (
     <main className="min-h-screen pt-24 pb-20 px-4 sm:px-8 max-w-5xl mx-auto">
-      <div className="flex items-end justify-between flex-wrap gap-3 mb-8">
-        <div>
-          <h1 className="font-cover text-xl text-neutral-900 dark:text-neutral-100">The Wall</h1>
-          <p className="font-mono-ui text-[10px] tracking-[0.18em] uppercase text-neutral-400 mt-1">Notes pinned by readers</p>
+      {/* taped title label overlapping the frame */}
+      <div className="relative z-20 flex justify-center -mb-6">
+        <div className="relative bg-[#fffdf6] dark:bg-neutral-900 dark:border dark:border-neutral-700 shadow-lg px-8 py-2.5 rotate-[-1.5deg] note-drop">
+          <span className="absolute -top-2 -left-4 w-10 h-4 bg-[#c3dcef]/70 dark:bg-[#c3dcef]/30 rotate-[-30deg]" />
+          <span className="absolute -top-2 -right-4 w-10 h-4 bg-[#f8e8a0]/80 dark:bg-[#f8e8a0]/30 rotate-[30deg]" />
+          <p className="font-cover text-[16px] text-[#2a2620] dark:text-neutral-100 tracking-wide text-center">THE WALL</p>
+          <p className="font-mono-ui text-[8px] tracking-[0.24em] uppercase text-neutral-400 text-center">notes pinned by readers</p>
         </div>
-        <Button data-testid="pin-note-btn" onClick={() => setOpen(true)} className="rounded-full h-9 gap-1.5 text-[12px]">
-          <Plus size={14} /> Stick a note
-        </Button>
       </div>
 
-      {notes === null ? (
-        <p className="font-mono-ui text-[10px] tracking-[0.2em] uppercase text-neutral-400 animate-pulse text-center py-20">unrolling the wall…</p>
-      ) : notes.length === 0 ? (
-        <div className="text-center py-20">
-          <StickyNote size={26} className="mx-auto text-neutral-300 mb-3" />
-          <p className="font-hand text-[20px] text-neutral-400">The wall is empty. Be the first to stick a note!</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5" data-testid="notes-wall">
-          {notes.map((n, i) => (
-            <div
-              key={n.id}
-              data-testid={`wall-note-${n.id}`}
-              className="sticky-note relative p-4 min-h-[130px] flex flex-col"
-              style={{ background: COLORS[n.color] || COLORS.lemon, transform: `rotate(${NOTE_ROTS[i % NOTE_ROTS.length]}deg)` }}
-            >
-              <span className="absolute -top-2 left-1/2 -translate-x-1/2 w-8 h-4 bg-white/50 border border-black/5 rotate-[-2deg]" />
-              <p className="font-hand text-[16px] leading-snug text-[#2a2620] flex-1">{n.message}</p>
-              <p className="font-mono-ui text-[8.5px] tracking-[0.14em] uppercase text-[#2a2620]/50 mt-3">
-                — {n.name || "anonymous"}
-              </p>
+      <div className="cork-frame">
+        <div className="cork-board relative px-5 sm:px-9 pt-12 pb-9" data-testid="notes-wall">
+          {notes === null ? (
+            <p className="font-mono-ui text-[10px] tracking-[0.2em] uppercase text-[#5a3a1a]/60 animate-pulse text-center py-24">unrolling the wall…</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-8 items-start">
+              {/* CTA note */}
+              <button
+                data-testid="pin-note-btn"
+                onClick={() => setOpen(true)}
+                className="group note-drop text-left"
+                style={{ animationDelay: "0ms" }}
+              >
+                <div className="pinned-note relative p-4 pt-6 min-h-[150px] flex flex-col items-center justify-center gap-2 border-2 border-dashed border-[#fffdf6]/70 bg-[#5a3a1a]/10 hover:bg-[#5a3a1a]/20 transition-colors" style={{ "--rot": "-2deg" }}>
+                  <span className="w-9 h-9 rounded-full bg-[#fffdf6] flex items-center justify-center shadow-md group-hover:scale-110 transition-transform">
+                    <Plus size={16} className="text-[#f94b0c]" />
+                  </span>
+                  <p className="font-hand text-[17px] text-[#fffdf6] text-center leading-tight drop-shadow-sm">stick your own note</p>
+                </div>
+              </button>
+
+              {/* subscribe card pinned to the board */}
+              <div className="note-drop" style={{ animationDelay: "70ms", marginTop: 10 }}>
+                <div className="pinned-note relative" style={{ "--rot": "1.8deg" }}>
+                  <Pin color="#d3232f" />
+                  <SubscribeCard variant="board" />
+                </div>
+              </div>
+
+              {notes.length === 0 ? (
+                <div className="note-drop col-span-2" style={{ animationDelay: "140ms" }}>
+                  <div className="pinned-note relative p-4 pt-6 min-h-[150px] flex flex-col justify-center shadow-md note-paper" style={{ "--rot": "-1.5deg", background: COLORS.lemon }}>
+                    <Pin color="#2f5d43" />
+                    <p className="font-hand text-[18px] text-[#2a2620] text-center leading-snug">The board is empty. Be the first to pin something kind, weird, or true.</p>
+                  </div>
+                </div>
+              ) : (
+                notes.map((n, i) => (
+                  <div
+                    key={n.id}
+                    data-testid={`wall-note-${n.id}`}
+                    className="group note-drop"
+                    style={{ animationDelay: `${(i + 2) * 70}ms`, marginTop: (i % 3) * 9 }}
+                  >
+                    <div
+                      className="pinned-note relative p-4 pt-6 min-h-[150px] flex flex-col shadow-md note-paper note-fold"
+                      style={{ "--rot": `${NOTE_ROTS[i % NOTE_ROTS.length]}deg`, background: COLORS[n.color] || COLORS.lemon }}
+                    >
+                      {i % 4 === 3 ? <Tape /> : <Pin color={PIN_COLORS[i % PIN_COLORS.length]} />}
+                      <p className="font-hand text-[16px] leading-snug text-[#2a2620] flex-1">{n.message}</p>
+                      <p className="font-mono-ui text-[8.5px] tracking-[0.14em] uppercase text-[#2a2620]/50 mt-3">
+                        — {n.name || "anonymous"}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
-          ))}
+          )}
+
+          {/* board doodles */}
+          <p className="absolute bottom-2 right-5 font-hand text-[14px] text-[#5a3a1a]/50 -rotate-3 select-none hidden sm:block" aria-hidden="true">
+        be kind. leave a trace. ✎
+          </p>
         </div>
-      )}
+      </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="rounded-2xl max-w-sm">

@@ -15,34 +15,48 @@ const Ribbon = () => (
   </svg>
 );
 
-// decorative desk props with gentle parallax
-const DeskProps = ({ mx, my }) => (
-  <div className="absolute inset-0 pointer-events-none hidden sm:block" aria-hidden="true">
-    {/* coffee ring stain */}
-    <svg className="absolute" style={{ left: "16%", top: "22%", width: 110, transform: `translate(${mx * -14}px, ${my * -10}px)` }} viewBox="0 0 100 100">
-      <circle cx="50" cy="50" r="38" fill="none" stroke="#8a6a3f" strokeOpacity="0.18" strokeWidth="7" />
-      <circle cx="50" cy="50" r="30" fill="none" stroke="#8a6a3f" strokeOpacity="0.08" strokeWidth="3" />
-    </svg>
-    {/* pencil */}
-    <svg className="absolute" style={{ right: "14%", top: "62%", width: 190, transform: `rotate(24deg) translate(${mx * 18}px, ${my * 12}px)` }} viewBox="0 0 200 22">
-      <rect x="18" y="6" width="150" height="10" rx="2" fill="#e8b04b" />
-      <rect x="18" y="6" width="150" height="3.5" rx="1.5" fill="#f3c86e" />
-      <polygon points="18,6 2,11 18,16" fill="#e7cfa8" />
-      <polygon points="7,9.4 2,11 7,12.6" fill="#3a352c" />
-      <rect x="168" y="5" width="10" height="12" rx="2" fill="#c9c2b8" />
-      <rect x="178" y="6" width="14" height="10" rx="4" fill="#e77e74" />
-    </svg>
-    {/* paperclip */}
-    <svg className="absolute" style={{ left: "24%", bottom: "18%", width: 42, transform: `rotate(-18deg) translate(${mx * 10}px, ${my * 14}px)` }} viewBox="0 0 24 48">
-      <path d="M7 10 v26 a5 5 0 0 0 10 0 V8 a8 8 0 0 0 -16 0 v30" fill="none" stroke="#9aa2ad" strokeWidth="2.4" strokeLinecap="round" />
-    </svg>
-    {/* washi tape */}
-    <div className="absolute" style={{ right: "22%", top: "18%", transform: `rotate(-8deg) translate(${mx * -10}px, ${my * -8}px)` }}>
-      <div className="w-[90px] h-[26px] bg-[#f94b0c]/15 border-x-[3px] border-dashed border-[#f94b0c]/20" />
+// hand-drawn ink arrow pointing down at the stack
+const InkArrow = () => (
+  <svg viewBox="0 0 120 64" className="w-[80px] mx-auto mt-1 opacity-75" aria-hidden="true">
+    <path d="M62 4 C 34 16, 42 40, 58 54" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    <path d="M49 47 L58 54 L61 43" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+// unified ink annotations — one tone, all typographic, like margin notes on the desk
+const DeskScene = ({ mx, my }) => (
+  <div className="absolute inset-0 pointer-events-none select-none text-neutral-400 dark:text-neutral-500" aria-hidden="true">
+    {/* invitation above the stack */}
+    <div className="absolute left-1/2 text-center" style={{ top: "8%", transform: `translateX(-50%) translate(${mx * -7}px, ${my * -4}px)` }}>
+      <p className="font-mono-ui text-[9px] tracking-[0.34em] uppercase">the field logs of</p>
+      <p className="font-logo text-[28px] text-neutral-700 dark:text-neutral-300 leading-tight mt-0.5">Juan</p>
+      <InkArrow />
     </div>
-    {/* tiny handwritten note */}
-    <p className="absolute font-hand text-[15px] text-neutral-400 -rotate-6" style={{ left: "13%", bottom: "30%", transform: `translate(${mx * 8}px, ${my * 8}px)` }}>
-      pick a notebook →
+
+    {/* left margin note */}
+    <div className="absolute hidden md:block" style={{ left: "24%", top: "40%", transform: `rotate(-3deg) translate(${mx * 10}px, ${my * 7}px)` }}>
+      <p className="font-hand text-[18px] leading-snug text-right">stories, poems, and<br />things kind people said —</p>
+      <svg viewBox="0 0 120 10" className="w-[110px] mt-1 ml-auto opacity-60">
+        <path d="M2 6 C 30 2, 60 9, 118 4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeDasharray="5 4" />
+      </svg>
+    </div>
+
+    {/* right margin note */}
+    <p className="absolute hidden md:block font-hand text-[17px]" style={{ right: "22%", top: "54%", transform: `rotate(2.5deg) translate(${mx * -11}px, ${my * -6}px)` }}>
+      mostly written at 3 AM ✳
+    </p>
+
+    {/* stamp, bottom-left — like the inside cover boxes */}
+    <div className="absolute hidden sm:block" style={{ left: "25%", bottom: "16%", transform: `rotate(-4deg) translate(${mx * 8}px, ${my * 6}px)` }}>
+      <div className="border-[1.5px] border-current rounded-[3px] px-3 py-1.5 opacity-70">
+        <p className="font-mono-ui text-[8px] tracking-[0.28em] uppercase">Field Log</p>
+        <p className="font-mono-ui text-[7px] tracking-[0.2em] uppercase mt-0.5">est. 2024 · Indonesia</p>
+      </div>
+    </div>
+
+    {/* tiny instruction, bottom-right */}
+    <p className="absolute hidden sm:block font-mono-ui text-[8.5px] tracking-[0.26em] uppercase" style={{ right: "24%", bottom: "18%", transform: `rotate(1.5deg) translate(${mx * -8}px, ${my * -5}px)` }}>
+      pick one to open →
     </p>
   </div>
 );
@@ -78,11 +92,20 @@ const HomePage = () => {
 
   return (
     <main className="min-h-screen flex items-center justify-center overflow-hidden relative">
-      <DeskProps mx={mouse.mx} my={mouse.my} />
+      <DeskScene mx={mouse.mx} my={mouse.my} />
       {loading ? (
         <div className="font-mono-ui text-[10px] tracking-[0.2em] uppercase text-neutral-400 animate-pulse">opening the drawer…</div>
       ) : (
-        <div className="relative w-[min(58vw,300px)]" style={{ aspectRatio: "300/460", maxHeight: "50vh", perspective: "1200px" }}>
+        <div className="relative w-[min(58vw,300px)]" style={{ aspectRatio: "300/460", maxHeight: "50vh", perspective: "1200px", marginTop: "6vh" }}>
+          {/* desk pad sheet anchoring the stack */}
+          <div
+            className="desk-pad absolute -inset-x-[46%] top-[-7%] bottom-[28%] rounded-xl pointer-events-none"
+            style={{ transform: `rotate(-1.2deg) translate(${mouse.mx * 4}px, ${mouse.my * 3}px)`, zIndex: 0 }}
+            aria-hidden="true"
+          >
+            <span className="absolute -top-2 left-[12%] w-14 h-4 bg-white/55 dark:bg-white/10 rotate-[-5deg] shadow-sm" />
+            <span className="absolute -bottom-2 right-[14%] w-14 h-4 bg-white/55 dark:bg-white/10 rotate-[4deg] shadow-sm" />
+          </div>
           {notebooks.map((nb, i) => {
             const x = (i - (n - 1) / 2) * spread;
             const rot = ROTS[i % ROTS.length];

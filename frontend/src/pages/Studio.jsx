@@ -8,6 +8,8 @@ import {
   getIdeas, deleteIdea,
   getAllNotes, approveNote, deleteNote,
   getNowWriting, updateNowWriting,
+  getSubscribers, deleteSubscriber, sendNotify,
+  getMusic, uploadMusic, deleteMusic,
 } from "../api";
 import { useNotebooks } from "../context/NotebooksContext";
 import { Input } from "../components/ui/input";
@@ -16,7 +18,7 @@ import { Button } from "../components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { Switch } from "../components/ui/switch";
-import { Plus, Trash2, Pencil, BookMarked, GripVertical, KeyRound, LogOut, Lightbulb, StickyNote, Check, PenLine } from "lucide-react";
+import { Plus, Trash2, Pencil, BookMarked, GripVertical, KeyRound, LogOut, Lightbulb, StickyNote, Check, PenLine, Mail, Send, Music, Upload } from "lucide-react";
 
 const VARIANTS = [
   { value: "orange", color: "#f94b0c" },
@@ -90,14 +92,72 @@ const Studio = () => {
   const [ideas, setIdeas] = useState([]);
   const [wallNotes, setWallNotes] = useState([]);
   const [now, setNow] = useState(null);
+  const [subs, setSubs] = useState([]);
+  const [notify, setNotify] = useState({ subject: "", message: "", link: "" });
+  const [sendingMail, setSendingMail] = useState(false);
+  const [music, setMusic] = useState({ exists: false, filename: "" });
+  const [uploadingMusic, setUploadingMusic] = useState(false);
 
   useEffect(() => {
     if (unlocked) {
       getIdeas().then(setIdeas).catch(() => setIdeas([]));
       getAllNotes().then(setWallNotes).catch(() => setWallNotes([]));
       getNowWriting().then(setNow).catch(() => setNow(null));
+      getSubscribers().then(setSubs).catch(() => setSubs([]));
+      getMusic().then(setMusic).catch(() => {});
     }
   }, [unlocked]);
+
+  const handleMusicUpload = async (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!f || uploadingMusic) return;
+    if (f.size > 20 * 1024 * 1024) { toast.error("Max file size is 20MB"); return; }
+    setUploadingMusic(true);
+    try {
+      const res = await uploadMusic(f);
+      setMusic({ exists: true, filename: res.filename });
+      toast.success("Music uploaded — it now plays across the site");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Upload failed");
+    } finally {
+      setUploadingMusic(false);
+    }
+  };
+
+  const handleDeleteMusic = async () => {
+    try {
+      await deleteMusic();
+      setMusic({ exists: false, filename: "" });
+      toast.success("Music removed");
+    } catch { toast.error("Failed to remove music"); }
+  };
+
+  const handleDeleteSub = async (id) => {
+    try {
+      await deleteSubscriber(id);
+      setSubs((prev) => prev.filter((s) => s.id !== id));
+      toast.success("Subscriber removed");
+    } catch { toast.error("Failed to remove"); }
+  };
+
+  const handleSendNotify = async () => {
+    if (!notify.subject.trim() || !notify.message.trim() || sendingMail) return;
+    setSendingMail(true);
+    try {
+      const res = await sendNotify(notify);
+      if (res.failed && res.failed.length > 0) {
+        toast.warning(`Sent ${res.sent}/${res.total} — ${res.failed.length} failed. Resend testing mode only delivers to your verified email until you verify a domain.`);
+      } else {
+        toast.success(`Letter sent to ${res.sent} reader${res.sent === 1 ? "" : "s"}`);
+      }
+      setNotify({ subject: "", message: "", link: "" });
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed to send the letter");
+    } finally {
+      setSendingMail(false);
+    }
+  };
 
   const handleApproveNote = async (id) => {
     try {
@@ -461,6 +521,71 @@ const Studio = () => {
             </div>
           </div>
         )}
+
+        {/* reader mail list + notify */}
+        <div className="rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm p-4" data-testid="subscribers-panel">
+          <div className="flex items-center gap-2 mb-3">
+            <Mail size={13} className="text-[#f94b0c]" />
+            <p className="font-mono-ui text-[9px] tracking-[0.2em] uppercase text-neutral-400">Reader mail list</p>
+            <span className="font-mono-ui text-[9px] text-neutral-400 ml-auto">{subs.length}</span>
+          </div>
+          {subs.length === 0 ? (
+            <p className="py-6 text-center text-[13px] text-neutral-400">No readers on the list yet.</p>
+          ) : (
+            <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
+              {subs.map((s) => (
+                <div key={s.id} data-testid={`sub-row-${s.id}`} className="flex items-center gap-3 px-3 py-2 rounded-xl border border-neutral-100 dark:border-neutral-800">
+                  <span className="text-[13px] text-neutral-800 dark:text-neutral-200 truncate flex-1">{s.email}</span>
+                  <span className="font-mono-ui text-[8.5px] tracking-[0.12em] uppercase text-neutral-400 shrink-0">{new Date(s.created_at).toLocaleDateString()}</span>
+                  <button data-testid={`del-sub-${s.id}`} onClick={() => handleDeleteSub(s.id)} className="p-1.5 rounded-lg text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors shrink-0" aria-label="Remove subscriber">
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="mt-4 pt-4 border-t border-dashed border-neutral-200 dark:border-neutral-800 space-y-3">
+            <p className="font-mono-ui text-[9px] tracking-[0.2em] uppercase text-neutral-400">Send a letter to everyone</p>
+            <Input data-testid="notify-subject-input" value={notify.subject} onChange={(e) => setNotify({ ...notify, subject: e.target.value })} placeholder="Subject — e.g. A new piece just landed" className="h-9 rounded-xl text-[13px]" />
+            <Textarea data-testid="notify-message-input" value={notify.message} onChange={(e) => setNotify({ ...notify, message: e.target.value })} placeholder="A short letter about what you just published…" className="rounded-xl text-[13px] min-h-[80px]" />
+            <Input data-testid="notify-link-input" value={notify.link} onChange={(e) => setNotify({ ...notify, link: e.target.value })} placeholder="Link to the piece (optional)" className="h-9 rounded-xl text-[13px]" />
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[10.5px] text-neutral-400 leading-snug">Resend testing mode: letters only reach your own verified email until you verify a domain at resend.com.</p>
+              <Button data-testid="notify-send-btn" onClick={handleSendNotify} disabled={sendingMail || subs.length === 0 || !notify.subject.trim() || !notify.message.trim()} className="rounded-full h-9 gap-1.5 text-[12px] shrink-0">
+                <Send size={12} /> {sendingMail ? "Sending…" : `Send to ${subs.length}`}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* background music */}
+        <div className="rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm p-4" data-testid="music-panel">
+          <div className="flex items-center gap-2 mb-3">
+            <Music size={13} className="text-[#f94b0c]" />
+            <p className="font-mono-ui text-[9px] tracking-[0.2em] uppercase text-neutral-400">Background music</p>
+          </div>
+          {music.exists ? (
+            <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-neutral-100 dark:border-neutral-800">
+              <Music size={13} className="text-neutral-400 shrink-0" />
+              <span data-testid="music-filename" className="text-[13px] text-neutral-800 dark:text-neutral-200 truncate flex-1">{music.filename || "background track"}</span>
+              <span className="font-mono-ui text-[8.5px] tracking-[0.12em] uppercase text-emerald-600 shrink-0">playing site-wide</span>
+              <button data-testid="delete-music-btn" onClick={handleDeleteMusic} className="p-1.5 rounded-lg text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors shrink-0" aria-label="Remove music">
+                <Trash2 size={13} />
+              </button>
+            </div>
+          ) : (
+            <p className="py-4 text-center text-[13px] text-neutral-400">No music yet. Upload a track to play softly across the whole site.</p>
+          )}
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <p className="text-[10.5px] text-neutral-400 leading-snug">mp3 / m4a / ogg, max 20MB. Loops quietly; visitors get a mute toggle at the bottom-left.</p>
+            <label className="shrink-0">
+              <input data-testid="music-file-input" type="file" accept="audio/*,.mp3,.m4a,.ogg,.wav" className="hidden" onChange={handleMusicUpload} disabled={uploadingMusic} />
+              <span className={`pill-dark h-9 px-4 gap-1.5 text-[12px] cursor-pointer ${uploadingMusic ? "opacity-50 pointer-events-none" : ""}`}>
+                <Upload size={12} /> {uploadingMusic ? "Uploading…" : music.exists ? "Replace" : "Upload music"}
+              </span>
+            </label>
+          </div>
+        </div>
         </div>
       </div>
 

@@ -8,8 +8,10 @@ import NotebookView from "./pages/NotebookView";
 import Studio from "./pages/Studio";
 import WallPage from "./pages/WallPage";
 import NowWritingPage from "./pages/NowWritingPage";
+import ArchivePage from "./pages/ArchivePage";
 import NotFound from "./pages/NotFound";
 import InkCursor from "./components/InkCursor";
+import MusicPlayer from "./components/MusicPlayer";
 import { NotebooksProvider } from "./context/NotebooksContext";
 import { Toaster } from "./components/ui/sonner";
 
@@ -54,10 +56,12 @@ function App() {
             <Route path="/notebook/:slug" element={<NotebookView />} />
             <Route path="/wall" element={<WallPage />} />
             <Route path="/now-writing" element={<NowWritingPage />} />
+            <Route path="/archive" element={<ArchivePage />} />
             <Route path="/studio" element={<Studio />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           <Footer />
+          <MusicPlayer />
           <Toaster position="bottom-center" />
         </NotebooksProvider>
       </BrowserRouter>

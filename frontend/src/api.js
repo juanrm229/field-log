@@ -53,3 +53,22 @@ export const deleteNote = async (id) => (await axios.delete(`${API}/guestbook/${
 // ---- now writing ----
 export const getNowWriting = async () => (await axios.get(`${API}/now-writing`)).data;
 export const updateNowWriting = async (data) => (await axios.put(`${API}/now-writing`, data, auth())).data;
+
+// ---- reader mail list ----
+export const subscribe = async (data) => (await axios.post(`${API}/subscribers`, data)).data;
+export const getSubscribers = async () => (await axios.get(`${API}/subscribers`, auth())).data;
+export const deleteSubscriber = async (id) => (await axios.delete(`${API}/subscribers/${id}`, auth())).data;
+export const sendNotify = async (data) => (await axios.post(`${API}/notify`, data, auth())).data;
+
+// ---- yearly archive ----
+export const getArchive = async () => (await axios.get(`${API}/archive`)).data;
+
+// ---- background music ----
+export const MUSIC_STREAM_URL = `${API}/music/stream`;
+export const getMusic = async () => (await axios.get(`${API}/music`)).data;
+export const uploadMusic = async (file) => {
+  const fd = new FormData();
+  fd.append("file", file);
+  return (await axios.post(`${API}/music`, fd, { headers: { "X-Studio-Key": studioKey } })).data;
+};
+export const deleteMusic = async () => (await axios.delete(`${API}/music`, auth())).data;

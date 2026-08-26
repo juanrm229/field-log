@@ -134,7 +134,7 @@ const TocPage = ({ data, goToEntry }) => (
         >
           <span className="font-hand text-[15px] text-[#3a352c] group-hover:text-[#f94b0c] transition-colors whitespace-nowrap overflow-hidden text-ellipsis underline decoration-dashed decoration-neutral-400/50 underline-offset-4">{w.title}</span>
           <span className="flex-1" />
-          <span className="font-mono-ui text-[8px] uppercase tracking-wider text-neutral-400 shrink-0">{w.category}</span>
+          <span className="font-mono-ui text-[8px] uppercase tracking-wider text-neutral-400 shrink-0">{w.category}{w.category ? " · " : ""}{readingStats(w).minutes} min</span>
         </button>
       ))}
     </div>

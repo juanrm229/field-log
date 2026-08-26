@@ -33,6 +33,7 @@ const Header = ({ theme, setTheme }) => {
   if (location.pathname === "/studio") current = "Studio";
   else if (location.pathname === "/wall") current = "The Wall";
   else if (location.pathname === "/now-writing") current = "Now Writing";
+  else if (location.pathname === "/archive") current = "Archive";
   else if (location.pathname.startsWith("/notebook/")) {
     const slug = location.pathname.split("/notebook/")[1];
     const nb = notebooks.find((n) => n.slug === slug);
@@ -97,6 +98,9 @@ const Header = ({ theme, setTheme }) => {
             </DropdownMenuItem>
             <DropdownMenuItem data-testid="nav-item-now-writing" className="rounded-lg text-[13px] cursor-pointer" onClick={() => navigate("/now-writing")}>
               Now Writing
+            </DropdownMenuItem>
+            <DropdownMenuItem data-testid="nav-item-archive" className="rounded-lg text-[13px] cursor-pointer" onClick={() => navigate("/archive")}>
+              Archive
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

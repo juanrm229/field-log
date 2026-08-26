@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { getNowWriting } from "../api";
 import { PenLine } from "lucide-react";
+import SubscribeCard from "../components/SubscribeCard";
 
 const Ring = ({ percent }) => {
   const r = 84;
@@ -43,6 +44,7 @@ const NowWritingPage = () => {
         <PenLine size={22} className="text-neutral-300" />
         <p className="font-hand text-[24px] text-neutral-500">The desk is quiet right now.</p>
         <p className="font-mono-ui text-[9px] tracking-[0.2em] uppercase text-neutral-400">no active manuscript — check back soon</p>
+        <div className="mt-6 w-full max-w-sm"><SubscribeCard /></div>
       </main>
     );
   }
@@ -73,6 +75,7 @@ const NowWritingPage = () => {
             last logged {new Date(data.updated_at).toLocaleDateString()}
           </p>
         )}
+        <div className="mt-8 mx-auto max-w-sm text-left"><SubscribeCard /></div>
       </div>
     </main>
   );
