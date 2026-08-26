@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useSite } from "../context/SiteContext";
 import { toast } from "sonner";
 import NotebookCover from "../components/NotebookCover";
 import {
@@ -9,8 +10,7 @@ import {
   getAllNotes, approveNote, deleteNote,
   getNowWriting, updateNowWriting,
   getSubscribers, deleteSubscriber, sendNotify,
-  getMusic, uploadMusic, deleteMusic,
-} from "../api";
+  getMusic, uploadMusic, deleteMusic, updateSite } from "../api";
 import { useNotebooks } from "../context/NotebooksContext";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
@@ -86,6 +86,36 @@ const Studio = () => {
   const { notebooks, refresh } = useNotebooks();
   const [unlocked, setUnlocked] = useState(hasStudioKey());
   const [selectedSlug, setSelectedSlug] = useState(null);
+  // The site settings arrive as arrays; the form edits them as text, one item
+  // per line, because that is how they read on the page.
+  const { site, refresh: refreshSite } = useSite();
+  const [siteForm, setSiteForm] = useState(null);
+
+  useEffect(() => {
+    if (site && siteForm === null) {
+      setSiteForm({
+        ...site,
+        coordinates: (site.coordinates || []).join("\n"),
+        back_lines: (site.back_lines || []).join("\n"),
+      });
+    }
+  }, [site, siteForm]);
+
+  const handleSaveSite = async () => {
+    try {
+      const toLines = (v) => String(v || "").split("\n").map((x) => x.trim()).filter(Boolean);
+      await updateSite({
+        ...siteForm,
+        coordinates: toLines(siteForm.coordinates),
+        back_lines: toLines(siteForm.back_lines),
+      });
+      refreshSite();
+      toast.success("Site saved");
+    } catch {
+      toast.error("Failed to save site");
+    }
+  };
+
   const [full, setFull] = useState(null);
   const [coverForm, setCoverForm] = useState(null);
   const [entryDialog, setEntryDialog] = useState(null); // {mode:'new'|'edit', data}
@@ -224,7 +254,7 @@ const Studio = () => {
     try {
       const nb = await createNotebook({
         label: "New notebook",
-        cover_title: "FIELD LOG",
+        cover_title: "COMMONPLACE BOOK",
         subtitle: ["Graph Paper Memo Book", "Custom / Written in Indonesia"],
         variant: "forest",
       });
@@ -393,6 +423,43 @@ const Studio = () => {
               </Button>
             </div>
           </div>
+
+          {siteForm && (
+          <div className="rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm p-4 space-y-3">
+            <p className="font-mono-ui text-[9px] tracking-[0.2em] uppercase text-neutral-400">Site &amp; inside cover</p>
+            <p className="text-[11px] text-neutral-400 leading-snug">
+              The name on every cover, and every line of the “Belongs to” page.
+            </p>
+
+            <Input data-testid="site-name-input" value={siteForm.site_name} onChange={(e) => setSiteForm({ ...siteForm, site_name: e.target.value })} placeholder="Site name" className="h-9 text-[13px] rounded-xl" />
+            <Input value={siteForm.site_tagline} onChange={(e) => setSiteForm({ ...siteForm, site_tagline: e.target.value })} placeholder="Tagline" className="h-9 text-[13px] rounded-xl" />
+            <Textarea value={siteForm.description} onChange={(e) => setSiteForm({ ...siteForm, description: e.target.value })} placeholder="Description (used for search results and shared links)" className="text-[13px] rounded-xl min-h-[64px]" />
+
+            <div className="border-t border-neutral-100 dark:border-neutral-800 pt-3 space-y-3">
+              <Input value={siteForm.owner_name} onChange={(e) => setSiteForm({ ...siteForm, owner_name: e.target.value })} placeholder="Belongs to" className="h-9 text-[13px] rounded-xl" />
+              <Textarea value={siteForm.coordinates} onChange={(e) => setSiteForm({ ...siteForm, coordinates: e.target.value })} placeholder="Pertinent coordinates — one per line" className="text-[13px] rounded-xl min-h-[56px]" />
+              <div className="grid grid-cols-2 gap-2">
+                <Input value={siteForm.start_date} onChange={(e) => setSiteForm({ ...siteForm, start_date: e.target.value })} placeholder="Start date" className="h-9 text-[13px] rounded-xl" />
+                <Input value={siteForm.start_location} onChange={(e) => setSiteForm({ ...siteForm, start_location: e.target.value })} placeholder="Location" className="h-9 text-[13px] rounded-xl" />
+                <Input value={siteForm.completion_date} onChange={(e) => setSiteForm({ ...siteForm, completion_date: e.target.value })} placeholder="Completion date" className="h-9 text-[13px] rounded-xl" />
+                <Input value={siteForm.completion_location} onChange={(e) => setSiteForm({ ...siteForm, completion_location: e.target.value })} placeholder="Location" className="h-9 text-[13px] rounded-xl" />
+              </div>
+              <div className="flex items-center gap-2">
+                <Input value={siteForm.contact_local} onChange={(e) => setSiteForm({ ...siteForm, contact_local: e.target.value })} placeholder="hello" className="h-9 text-[13px] rounded-xl" />
+                <span className="text-neutral-400 text-[13px]">@</span>
+                <Input value={siteForm.contact_domain} onChange={(e) => setSiteForm({ ...siteForm, contact_domain: e.target.value })} placeholder="yourdomain.id" className="h-9 text-[13px] rounded-xl" />
+              </div>
+              <Input value={siteForm.footer} onChange={(e) => setSiteForm({ ...siteForm, footer: e.target.value })} placeholder="Footer line" className="h-9 text-[13px] rounded-xl" />
+            </div>
+
+            <div className="border-t border-neutral-100 dark:border-neutral-800 pt-3 space-y-3">
+              <Textarea value={siteForm.back_lines} onChange={(e) => setSiteForm({ ...siteForm, back_lines: e.target.value })} placeholder="Back cover — one line per row" className="text-[13px] rounded-xl min-h-[56px]" />
+              <Input value={siteForm.back_end} onChange={(e) => setSiteForm({ ...siteForm, back_end: e.target.value })} placeholder="Closing word (fin.)" className="h-9 text-[13px] rounded-xl" />
+            </div>
+
+            <Button data-testid="save-site-btn" onClick={handleSaveSite} className="rounded-full h-8 text-[12px] w-full">Save site</Button>
+          </div>
+          )}
         </div>
 
         {/* right : entries */}

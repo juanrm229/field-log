@@ -27,7 +27,7 @@ const InkArrow = () => (
 // `roomy` is for the phone, where the desktop stamp's 7px print is unreadable.
 const Stamp = ({ className = "", roomy = false }) => (
   <div className={`border-[1.5px] border-current rounded-[3px] opacity-70 ${roomy ? "px-4 py-2" : "px-3 py-1.5"} ${className}`}>
-    <p className={`font-mono-ui ${roomy ? "text-[11px]" : "text-[8px]"} tracking-[0.28em] uppercase`}>Field Log</p>
+    <p className={`font-mono-ui ${roomy ? "text-[11px]" : "text-[8px]"} tracking-[0.28em] uppercase`}>Commonplace</p>
     <p className={`font-mono-ui ${roomy ? "text-[10px]" : "text-[7px]"} tracking-[0.2em] uppercase mt-0.5`}>est. 2024 · Indonesia</p>
   </div>
 );
@@ -37,7 +37,7 @@ const DeskScene = ({ mx, my }) => (
   <div className="absolute inset-0 pointer-events-none select-none text-neutral-400 dark:text-neutral-500" aria-hidden="true">
     {/* invitation above the stack */}
     <div className="absolute left-1/2 text-center" style={{ top: "8%", transform: `translateX(-50%) translate(${mx * -7}px, ${my * -4}px)` }}>
-      <p className="font-mono-ui text-[9px] tracking-[0.34em] uppercase">the field logs of</p>
+      <p className="font-mono-ui text-[9px] tracking-[0.34em] uppercase">the commonplace book of</p>
       <p className="font-logo text-[28px] text-neutral-700 dark:text-neutral-300 leading-tight mt-0.5">Juan</p>
       <InkArrow />
     </div>
@@ -237,7 +237,7 @@ const HomePage = () => {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center overflow-x-hidden pt-20 pb-10">
         <div className="text-center text-neutral-400 dark:text-neutral-500 mb-5" aria-hidden="true">
-          <p className="font-mono-ui text-[10px] tracking-[0.34em] uppercase">the field logs of</p>
+          <p className="font-mono-ui text-[10px] tracking-[0.34em] uppercase">the commonplace book of</p>
           <p className="font-logo text-[30px] text-neutral-700 dark:text-neutral-300 leading-tight mt-0.5">Juan</p>
         </div>
         <MobileShelf notebooks={notebooks} onOpen={openNotebook} />

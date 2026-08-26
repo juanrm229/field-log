@@ -27,7 +27,7 @@ const el = React.createElement;
 
 export default function handler(request) {
   const { searchParams } = new URL(request.url);
-  const title = (searchParams.get("title") || "Field Log").slice(0, 120);
+  const title = (searchParams.get("title") || "Commonplace Book").slice(0, 120);
   const label = (searchParams.get("label") || "").slice(0, 60);
   const category = (searchParams.get("category") || "").slice(0, 40);
   const c = COVERS[searchParams.get("variant")] || COVERS.orange;
@@ -61,7 +61,7 @@ export default function handler(request) {
               textTransform: "uppercase",
             },
           },
-          "Field Log"
+          "Commonplace Book"
         ),
         category
           ? el(

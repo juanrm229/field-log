@@ -1,7 +1,7 @@
 {
-  "name": "Juan Maulana — Field Log",
-  "short_name": "Field Log",
-  "description": "Novels, short stories, poetry and journals — a field log of quiet things.",
+  "name": "Juan Maulana — Commonplace Book",
+  "short_name": "Commonplace",
+  "description": "Novels, short stories, poetry and journals, kept in one place.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

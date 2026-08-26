@@ -142,6 +142,30 @@ async def unique_entry_slug(title: str, preferred: str = "", exclude_id: str = "
 
 
 # ---------- Models ----------
+class SiteSettings(BaseModel):
+    """Everything the site says about itself that used to be typed into the
+    source: the name on the covers, the meta description, and every line of the
+    inside-cover page. Stored as one document so the owner can change any of it
+    from Studio without a deploy."""
+    # identity
+    site_name: str = "Commonplace Book"
+    site_tagline: str = "stories, poems & things kind people said"
+    description: str = ""
+    owner_name: str = "Juan"
+    # inside front cover
+    coordinates: List[str] = []
+    start_date: str = ""
+    start_location: str = ""
+    completion_date: str = ""
+    completion_location: str = ""
+    contact_local: str = ""
+    contact_domain: str = ""
+    footer: str = ""
+    # inside back cover
+    back_lines: List[str] = []
+    back_end: str = "fin."
+
+
 class Chapter(BaseModel):
     title: str = ""
     body: str = ""
@@ -151,7 +175,7 @@ class Notebook(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     slug: str
     label: str
-    cover_title: str = "FIELD LOG"
+    cover_title: str = "COMMONPLACE BOOK"
     subtitle: List[str] = []
     variant: str = "paper"
     order: int = 0
@@ -161,7 +185,7 @@ class Notebook(BaseModel):
 class NotebookCreate(BaseModel):
     label: str
     slug: Optional[str] = None
-    cover_title: str = "FIELD LOG"
+    cover_title: str = "COMMONPLACE BOOK"
     subtitle: List[str] = []
     variant: str = "paper"
     order: Optional[int] = None
@@ -237,7 +261,7 @@ async def next_order(collection, query=None):
 # ---------- Routes ----------
 @api_router.get("/")
 async def root():
-    return {"message": "Field Log API"}
+    return {"message": "Commonplace Book API"}
 
 
 @api_router.get("/notebooks")
@@ -304,6 +328,34 @@ async def notebook_full(slug: str, x_studio_key: Optional[str] = Header(None)):
         query["draft"] = {"$ne": True}
     entries = await db.entries.find(query).sort("order", 1).to_list(500)
     return {"notebook": clean(nb), "entries": [clean(e) for e in entries]}
+
+
+SITE_DEFAULTS = SiteSettings(
+    description="Novels, short stories, poetry and journals, kept in one place.",
+    coordinates=["@kodawrites", "koda.substack.com"],
+    start_date="the first rain of 2024",
+    start_location="a desk facing a wall",
+    contact_local="hello",
+    contact_domain="juanmaulana.id",
+    footer="juanmaulana.id",
+    back_lines=["48 pages / smooth graph paper", "Written by Juan"],
+)
+
+
+@api_router.get("/site")
+async def get_site():
+    """Falls back field by field, so a setting added after the owner last saved
+    still arrives with a sensible value instead of an empty string."""
+    doc = await db.settings.find_one({"_id": "site"}) or {}
+    doc.pop("_id", None)
+    return {**SITE_DEFAULTS.model_dump(), **{k: v for k, v in doc.items() if v not in (None, "")}}
+
+
+@api_router.put("/site")
+async def update_site(payload: SiteSettings, x_studio_key: Optional[str] = Header(None)):
+    require_studio_key(x_studio_key)
+    await db.settings.update_one({"_id": "site"}, {"$set": payload.model_dump()}, upsert=True)
+    return await get_site()
 
 
 @api_router.get("/read/{slug}")
@@ -557,7 +609,7 @@ async def delete_subscriber(sub_id: str, x_studio_key: Optional[str] = Header(No
     return {"deleted": True}
 
 
-def notify_html(subject: str, message: str, link: str) -> str:
+def notify_html(subject: str, message: str, link: str, wordmark: str, owner: str) -> str:
     btn = (
         f'<tr><td style="padding-top:20px"><a href="{link}" '
         'style="background:#f94b0c;color:#ffffff;text-decoration:none;padding:11px 24px;'
@@ -567,11 +619,11 @@ def notify_html(subject: str, message: str, link: str) -> str:
         '<table width="100%" cellpadding="0" cellspacing="0" style="background:#f0ebdc;padding:36px 12px"><tr><td align="center">'
         '<table width="520" cellpadding="0" cellspacing="0" style="background:#fffdf6;border:1px solid #e2dcc8;'
         'border-radius:12px;padding:34px;font-family:Georgia,serif;color:#2a2620">'
-        '<tr><td style="font-size:11px;letter-spacing:3px;color:#f94b0c;text-transform:uppercase;font-family:Courier,monospace">Field Log &middot; Juan</td></tr>'
+        f'<tr><td style="font-size:11px;letter-spacing:3px;color:#f94b0c;text-transform:uppercase;font-family:Courier,monospace">{wordmark}</td></tr>'
         f'<tr><td style="font-size:22px;font-weight:bold;padding-top:12px">{subject}</td></tr>'
         f'<tr><td style="font-size:15px;line-height:1.75;padding-top:14px;white-space:pre-line">{message}</td></tr>'
         f'{btn}'
-        '<tr><td style="font-size:11px;color:#8a857a;padding-top:28px">You are getting this letter because you left your email on the Field Log &mdash; written in Indonesia.</td></tr>'
+        f'<tr><td style="font-size:11px;color:#8a857a;padding-top:28px">You are getting this letter because you left your email on {owner}\'s notebooks &mdash; written in Indonesia.</td></tr>'
         '</table></td></tr></table>'
     )
 
@@ -584,11 +636,13 @@ async def notify_subscribers(payload: NotifyRequest, x_studio_key: Optional[str]
     subs = await db.subscribers.find().to_list(1000)
     if not subs:
         raise HTTPException(status_code=400, detail="no subscribers yet")
-    html = notify_html(payload.subject.strip(), payload.message.strip(), payload.link.strip())
+    site = await get_site()
+    wordmark = f"{site['site_name']} · {site['owner_name']}".strip(" ·")
+    html = notify_html(payload.subject.strip(), payload.message.strip(), payload.link.strip(), wordmark, site["owner_name"])
     sent, failed = 0, []
     for s in subs:
         params = {
-            "from": f"Juan · Field Log <{SENDER_EMAIL}>",
+            "from": f"{wordmark} <{SENDER_EMAIL}>",
             "to": [s["email"]],
             "subject": payload.subject.strip(),
             "html": html,
@@ -750,7 +804,7 @@ async def seed_if_empty():
         return
     logger.info("Seeding default notebooks & entries...")
     for i, nb_data in enumerate(DEFAULT_NOTEBOOKS):
-        nb = Notebook(slug=nb_data["slug"], label=nb_data["label"], cover_title=nb_data.get("cover_title", "FIELD LOG"),
+        nb = Notebook(slug=nb_data["slug"], label=nb_data["label"], cover_title=nb_data.get("cover_title", "COMMONPLACE BOOK"),
                       subtitle=nb_data["subtitle"], variant=nb_data["variant"], order=i)
         await db.notebooks.insert_one(nb.model_dump())
         for j, e in enumerate(nb_data["entries"]):

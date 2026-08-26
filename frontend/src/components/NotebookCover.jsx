@@ -1,7 +1,8 @@
 import React from "react";
+import { useSite } from "../context/SiteContext";
 
 /*
-  Renders a FIELD LOG memo book cover in 3 variants:
+  Renders a COMMONPLACE BOOK memo book cover in 3 variants:
   - orange : Expedition Orange with topographic contour lines (About me)
   - paper  : off-white with fountain pen nib ink illustration (Writings)
   - blue   : halftone blue mountains (Kind words)
@@ -179,9 +180,29 @@ const VARIANT_STYLES = {
   },
 };
 
-const NotebookCover = ({ variant = "orange", label, subtitle = [], coverTitle = "FIELD LOG", large = false, back = false }) => {
+const NotebookCover = ({ variant = "orange", label, subtitle = [], coverTitle = "COMMONPLACE BOOK", large = false, back = false }) => {
   const s = VARIANT_STYLES[variant] || VARIANT_STYLES.orange;
-  const titleText = (coverTitle || "FIELD LOG").split(" ").join("\n");
+  // The back-cover blurb is owner-editable; the defaults only cover a first
+  // paint before the settings request lands.
+  const { site } = useSite();
+  const backLines = site.back_lines && site.back_lines.length ? site.back_lines : [];
+  const backEnd = site.back_end || "fin.";
+  const titleText = (coverTitle || "COMMONPLACE BOOK").split(" ").join("\n");
+
+  // The cover title was sized for a five-letter word. "COMMONPLACE" is eleven,
+  // and ran straight off the edge. Archivo Black with 0.22em tracking takes
+  // roughly 0.95em per character and the print area is about 80% of the cover,
+  // so the type has to come down as the longest word grows.
+  const longestWord = titleText.split("\n").reduce((m, w) => Math.max(m, w.length), 1);
+  const fit = Math.min(1, 5.5 / longestWord);
+  const titleStyle = large
+    ? { fontSize: `clamp(${Math.round(28 * fit)}px, ${(4.6 * fit).toFixed(2)}vh, ${Math.round(44 * fit)}px)` }
+    : { fontSize: `clamp(${Math.round(13 * fit)}px, ${(14 * fit).toFixed(2)}cqw, ${Math.round(30 * fit)}px)` };
+  // The back cover prints it on one line, with wider tracking still.
+  const backFit = Math.min(1, 9 / (coverTitle || "COMMONPLACE BOOK").length);
+  const backTitleStyle = large
+    ? { fontSize: `${Math.round(13 * backFit)}px` }
+    : { fontSize: `clamp(${Math.round(7 * backFit)}px, ${(5.9 * backFit).toFixed(2)}cqw, ${Math.round(12 * backFit)}px)` };
 
   if (back) {
     return (
@@ -190,17 +211,18 @@ const NotebookCover = ({ variant = "orange", label, subtitle = [], coverTitle = 
         <div className="absolute right-0 top-0 bottom-0 w-[6%] bg-gradient-to-l from-black/25 via-black/10 to-transparent" />
         <div className="absolute right-[5%] top-0 bottom-0 w-px bg-black/10" />
         <div className={`absolute inset-0 flex flex-col items-center justify-between px-[12%] py-[10%] ${s.sub}`}>
-          <p className={`font-cover ${large ? "text-[13px]" : "cover-back-title text-[clamp(7px,1vw,11px)]"} tracking-[0.28em] ${s.title}`}>{coverTitle || "FIELD LOG"}</p>
+          <p style={backTitleStyle} className={`font-cover ${large ? "text-[13px]" : "cover-back-title text-[clamp(7px,1vw,11px)]"} tracking-[0.28em] ${s.title}`}>{coverTitle || "COMMONPLACE BOOK"}</p>
           <div className="text-center space-y-[6px]">
             <div className={`mx-auto w-10 h-px ${variant === "paper" || variant === "blue" ? "bg-black/20" : "bg-white/30"}`} />
             {subtitle.map((line, i) => (
               <p key={i} className={`font-mono-ui ${large ? "text-[8.5px]" : "cover-back-sub text-[clamp(4.5px,0.7vw,7px)]"} tracking-[0.16em] uppercase leading-relaxed`}>{line}</p>
             ))}
-            <p className={`font-mono-ui ${large ? "text-[8.5px]" : "cover-back-sub text-[clamp(4.5px,0.7vw,7px)]"} tracking-[0.16em] uppercase`}>48 pages / smooth graph paper</p>
-            <p className={`font-mono-ui ${large ? "text-[8.5px]" : "cover-back-sub text-[clamp(4.5px,0.7vw,7px)]"} tracking-[0.16em] uppercase`}>Written by Juan / Logged by Koda</p>
+            {backLines.map((line, i) => (
+              <p key={i} className={`font-mono-ui ${large ? "text-[8.5px]" : "cover-back-sub text-[clamp(4.5px,0.7vw,7px)]"} tracking-[0.16em] uppercase`}>{line}</p>
+            ))}
             <div className={`mx-auto w-10 h-px ${variant === "paper" || variant === "blue" ? "bg-black/20" : "bg-white/30"}`} />
           </div>
-          <p className={`font-hand ${large ? "text-[18px]" : "cover-fin text-[clamp(9px,1.4vw,14px)]"} ${s.label}`}>fin.</p>
+          <p className={`font-hand ${large ? "text-[18px]" : "cover-fin text-[clamp(9px,1.4vw,14px)]"} ${s.label}`}>{backEnd}</p>
         </div>
         <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(245deg, rgba(255,255,255,0.10) 0%, transparent 30%, transparent 75%, rgba(0,0,0,0.06) 100%)" }} />
       </div>
@@ -228,7 +250,7 @@ const NotebookCover = ({ variant = "orange", label, subtitle = [], coverTitle = 
 
       {/* cover print */}
       <div className="absolute inset-0 flex flex-col items-center pt-[13%] px-[10%]">
-        <h2 className={`font-cover ${s.title} ${large ? "text-[clamp(28px,4.6vh,44px)]" : "cover-title text-[clamp(15px,2.6vw,26px)]"} leading-[1.05] tracking-[0.22em] text-center whitespace-pre-line`}>
+        <h2 style={titleStyle} className={`font-cover ${s.title} ${large ? "text-[clamp(28px,4.6vh,44px)]" : "cover-title text-[clamp(15px,2.6vw,26px)]"} leading-[1.05] tracking-[0.22em] text-center whitespace-pre-line`}>
           {titleText}
         </h2>
         <div className={`mt-[7%] text-center ${s.sub}`}>

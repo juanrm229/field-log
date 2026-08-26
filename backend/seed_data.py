@@ -1,4 +1,4 @@
-"""Default seed content for Juan Maulana / Koda's Field Log showcase.
+"""Default seed content for Juan Maulana's commonplace book.
 All writing below is original placeholder content."""
 
 DEFAULT_NOTEBOOKS = [

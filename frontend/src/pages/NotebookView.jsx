@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import NotebookCover from "../components/NotebookCover";
 import Reader from "../components/Reader";
 import { getNotebookFull, submitIdea } from "../api";
+import { useSite } from "../context/SiteContext";
 import { readingStats } from "../lib/reading";
 import { saveBookmark, getBookmark } from "../lib/bookmarks";
 import { playPageFlip } from "../lib/sounds";
@@ -59,50 +60,56 @@ const DashLine = ({ children, small }) => (
   </div>
 );
 
-const InsideCover = () => (
-  <div className="w-full h-full bg-[#f6f5f0] flex flex-col justify-between px-[9%] py-[8%]">
-    <div className="space-y-4">
-      <BoxedSection label="Belongs to">
-        <p className="font-logo text-[26px] text-[#1d1b17] -rotate-3 translate-y-1 pl-4">Juan</p>
-        <DashLine small />
-      </BoxedSection>
-      <BoxedSection label="Pertinent coordinates">
-        <DashLine><span className="font-hand text-[14px] text-[#1d1b17]">@kodawrites</span></DashLine>
-        <DashLine><span className="font-hand text-[14px] text-[#1d1b17]">koda.substack.com</span></DashLine>
-        <DashLine small />
-      </BoxedSection>
-      <BoxedSection label="For internal records">
-        <div className="grid grid-cols-2 gap-x-4">
-          <div>
-            <p className="font-mono-ui text-[7px] tracking-[0.18em] uppercase text-neutral-400 mt-1">Start date</p>
-            <DashLine small><span className="font-hand text-[13px] text-[#1d1b17]">the first rain of 2024</span></DashLine>
+// Every line here is owner-editable from Studio; it used to be typed into this
+// component, so changing a handle meant a code change and a deploy.
+const InsideCover = ({ site }) => {
+  const coordinates = site.coordinates && site.coordinates.length ? site.coordinates : [""];
+  return (
+    <div className="w-full h-full bg-[#f6f5f0] flex flex-col justify-between px-[9%] py-[8%]">
+      <div className="space-y-4">
+        <BoxedSection label="Belongs to">
+          <p className="font-logo text-[26px] text-[#1d1b17] -rotate-3 translate-y-1 pl-4">{site.owner_name}</p>
+          <DashLine small />
+        </BoxedSection>
+        <BoxedSection label="Pertinent coordinates">
+          {coordinates.map((line, i) => (
+            <DashLine key={i}><span className="font-hand text-[14px] text-[#1d1b17]">{line}</span></DashLine>
+          ))}
+          <DashLine small />
+        </BoxedSection>
+        <BoxedSection label="For internal records">
+          <div className="grid grid-cols-2 gap-x-4">
+            <div>
+              <p className="font-mono-ui text-[7px] tracking-[0.18em] uppercase text-neutral-400 mt-1">Start date</p>
+              <DashLine small><span className="font-hand text-[13px] text-[#1d1b17]">{site.start_date}</span></DashLine>
+            </div>
+            <div>
+              <p className="font-mono-ui text-[7px] tracking-[0.18em] uppercase text-neutral-400 mt-1">Location</p>
+              <DashLine small><span className="font-hand text-[13px] text-[#1d1b17]">{site.start_location}</span></DashLine>
+            </div>
+            <div>
+              <p className="font-mono-ui text-[7px] tracking-[0.18em] uppercase text-neutral-400 mt-2">Completion date</p>
+              <DashLine small><span className="font-hand text-[13px] text-[#1d1b17]">{site.completion_date}</span></DashLine>
+            </div>
+            <div>
+              <p className="font-mono-ui text-[7px] tracking-[0.18em] uppercase text-neutral-400 mt-2">Location</p>
+              <DashLine small><span className="font-hand text-[13px] text-[#1d1b17]">{site.completion_location}</span></DashLine>
+            </div>
           </div>
-          <div>
-            <p className="font-mono-ui text-[7px] tracking-[0.18em] uppercase text-neutral-400 mt-1">Location</p>
-            <DashLine small><span className="font-hand text-[13px] text-[#1d1b17]">a desk facing a wall</span></DashLine>
+        </BoxedSection>
+        <BoxedSection label="If misplaced">
+          <p className="font-mono-ui text-[7px] tracking-[0.18em] uppercase text-neutral-400 mb-1">Please contact:</p>
+          <div className="flex items-end gap-2">
+            <DashLine><span className="font-hand text-[14px] text-[#1d1b17]">{site.contact_local}</span></DashLine>
+            <span className="font-mono-ui text-[10px] text-neutral-500 pb-0.5">@</span>
+            <DashLine><span className="font-hand text-[14px] text-[#1d1b17]">{site.contact_domain}</span></DashLine>
           </div>
-          <div>
-            <p className="font-mono-ui text-[7px] tracking-[0.18em] uppercase text-neutral-400 mt-2">Completion date</p>
-            <DashLine small />
-          </div>
-          <div>
-            <p className="font-mono-ui text-[7px] tracking-[0.18em] uppercase text-neutral-400 mt-2">Location</p>
-            <DashLine small />
-          </div>
-        </div>
-      </BoxedSection>
-      <BoxedSection label="If misplaced">
-        <p className="font-mono-ui text-[7px] tracking-[0.18em] uppercase text-neutral-400 mb-1">Please contact:</p>
-        <div className="flex items-end gap-2">
-          <DashLine><span className="font-hand text-[14px] text-[#1d1b17]">hello</span></DashLine>
-          <span className="font-mono-ui text-[10px] text-neutral-500 pb-0.5">@</span>
-          <DashLine><span className="font-hand text-[14px] text-[#1d1b17]">juanmaulana.id</span></DashLine>
-        </div>
-      </BoxedSection>
+        </BoxedSection>
+      </div>
+      <p className="text-center font-mono-ui text-[9px] tracking-[0.3em] uppercase text-neutral-500 pt-3">{site.footer}</p>
     </div>
-    <p className="text-center font-mono-ui text-[9px] tracking-[0.3em] uppercase text-neutral-500 pt-3">juanmaulana.id</p>
-  </div>
-);
+  );
+};
 
 // ---------- content pages (cream graph paper, handwritten) ----------
 const CreamPage = ({ children, pageNo }) => (
@@ -243,6 +250,7 @@ const BlankPage = () => (
 
 // ---------- main view ----------
 const NotebookView = () => {
+  const { site } = useSite();
   const { slug } = useParams();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -363,7 +371,7 @@ const NotebookView = () => {
 
   const renderContentPage = (item) => {
     switch (item.type) {
-      case "inside": return <InsideCover />;
+      case "inside": return <InsideCover site={site} />;
       case "toc": return <CreamPage><TocPage data={item.data} goToEntry={goToEntry} /></CreamPage>;
       case "about": return <CreamPage><AboutPage data={item.data} /></CreamPage>;
       case "piece": return <CreamPage><PiecePage data={item.data} onRead={setReaderEntry} /></CreamPage>;

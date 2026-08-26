@@ -18,6 +18,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 import InkCursor from "./components/InkCursor";
 import MusicPlayer from "./components/MusicPlayer";
 import { NotebooksProvider } from "./context/NotebooksContext";
+import { SiteProvider } from "./context/SiteContext";
 import { Toaster } from "./components/ui/sonner";
 
 const applyTheme = (theme) => {
@@ -67,6 +68,7 @@ function App() {
   return (
     <div className="App min-h-screen font-ui">
       <BrowserRouter>
+        <SiteProvider>
         <NotebooksProvider>
           <BlueprintBackground />
           <InkCursor />
@@ -89,6 +91,7 @@ function App() {
           <MusicPlayer />
           <Toaster position="bottom-center" />
         </NotebooksProvider>
+        </SiteProvider>
       </BrowserRouter>
     </div>
   );

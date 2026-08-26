@@ -19,6 +19,8 @@ const auth = () => ({ headers: { "X-Studio-Key": studioKey } });
 export const studioAuth = async (password) => (await axios.post(`${API}/studio/auth`, { password })).data;
 
 // ---- public reads ----
+export const getSite = async () => (await axios.get(`${API}/site`)).data;
+export const updateSite = async (data) => (await axios.put(`${API}/site`, data, auth())).data;
 export const getNotebooks = async () => (await axios.get(`${API}/notebooks`)).data;
 export const getNotebookFull = async (slug) => (await axios.get(`${API}/notebooks/${slug}/full`)).data;
 export const searchEntries = async (q) => (await axios.get(`${API}/search`, { params: { q } })).data;

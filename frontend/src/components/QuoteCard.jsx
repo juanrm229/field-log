@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useSite } from "../context/SiteContext";
 import { X, Download } from "lucide-react";
 
 // Renders a selected quote onto a canvas as a shareable card (client-side only)
@@ -20,6 +21,8 @@ const wrapText = (ctx, text, maxWidth) => {
 };
 
 const QuoteCard = ({ quote, title, onClose }) => {
+  const { site } = useSite();
+  const wordmark = `${site.owner_name || "Juan Maulana"} \u00B7 ${site.site_name}`.toUpperCase();
   const canvasRef = useRef(null);
   const [ready, setReady] = useState(false);
 
@@ -70,7 +73,7 @@ const QuoteCard = ({ quote, title, onClose }) => {
       ctx.fillText(`\u2014 ${title}`, 110, H - 170);
       ctx.font = "400 24px 'IBM Plex Mono', monospace";
       ctx.fillStyle = "rgba(58,53,44,0.55)";
-      ctx.fillText("JUAN MAULANA \u00B7 FIELD LOG", 110, H - 120);
+      ctx.fillText(wordmark, 110, H - 120);
       // flag dot
       ctx.fillStyle = "#e63946";
       ctx.fillRect(W - 160, H - 142, 40, 13);
@@ -81,7 +84,7 @@ const QuoteCard = ({ quote, title, onClose }) => {
       setReady(true);
     };
     draw();
-  }, [quote, title]);
+  }, [quote, title, wordmark]);
 
   const download = () => {
     const url = canvasRef.current.toDataURL("image/png");
