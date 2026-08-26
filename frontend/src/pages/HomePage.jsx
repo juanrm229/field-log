@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import NotebookCover from "../components/NotebookCover";
 import { useNotebooks } from "../context/NotebooksContext";
@@ -23,7 +23,15 @@ const InkArrow = () => (
   </svg>
 );
 
-// unified ink annotations — one tone, all typographic, like margin notes on the desk
+// `roomy` is for the phone, where the desktop stamp's 7px print is unreadable.
+const Stamp = ({ className = "", roomy = false }) => (
+  <div className={`border-[1.5px] border-current rounded-[3px] opacity-70 ${roomy ? "px-4 py-2" : "px-3 py-1.5"} ${className}`}>
+    <p className={`font-mono-ui ${roomy ? "text-[11px]" : "text-[8px]"} tracking-[0.28em] uppercase`}>Field Log</p>
+    <p className={`font-mono-ui ${roomy ? "text-[10px]" : "text-[7px]"} tracking-[0.2em] uppercase mt-0.5`}>est. 2024 · Indonesia</p>
+  </div>
+);
+
+// Desktop only: ink annotations scattered around the stack, like margin notes on a desk.
 const DeskScene = ({ mx, my }) => (
   <div className="absolute inset-0 pointer-events-none select-none text-neutral-400 dark:text-neutral-500" aria-hidden="true">
     {/* invitation above the stack */}
@@ -47,31 +55,126 @@ const DeskScene = ({ mx, my }) => (
     </p>
 
     {/* stamp, bottom-left — like the inside cover boxes */}
-    <div className="absolute hidden sm:block" style={{ left: "25%", bottom: "16%", transform: `rotate(-4deg) translate(${mx * 8}px, ${my * 6}px)` }}>
-      <div className="border-[1.5px] border-current rounded-[3px] px-3 py-1.5 opacity-70">
-        <p className="font-mono-ui text-[8px] tracking-[0.28em] uppercase">Field Log</p>
-        <p className="font-mono-ui text-[7px] tracking-[0.2em] uppercase mt-0.5">est. 2024 · Indonesia</p>
-      </div>
+    <div className="absolute" style={{ left: "25%", bottom: "16%", transform: `rotate(-4deg) translate(${mx * 8}px, ${my * 6}px)` }}>
+      <Stamp />
     </div>
 
     {/* tiny instruction, bottom-right */}
-    <p className="absolute hidden sm:block font-mono-ui text-[8.5px] tracking-[0.26em] uppercase" style={{ right: "24%", bottom: "18%", transform: `rotate(1.5deg) translate(${mx * -8}px, ${my * -5}px)` }}>
+    <p className="absolute font-mono-ui text-[8.5px] tracking-[0.26em] uppercase" style={{ right: "24%", bottom: "18%", transform: `rotate(1.5deg) translate(${mx * -8}px, ${my * -5}px)` }}>
       pick one to open →
     </p>
-
-    {/* mobile-only caption fills the lower half of the desk */}
-    <div className="absolute inset-x-0 bottom-[13%] flex flex-col items-center gap-3 sm:hidden">
-      <p className="font-hand text-[16px] text-center leading-snug text-neutral-400 dark:text-neutral-500 px-8">
-        stories, poems &amp; things<br />kind people said —
-      </p>
-      <div className="border-[1.5px] border-current rounded-[3px] px-3 py-1.5 opacity-60 -rotate-2 text-center">
-        <p className="font-mono-ui text-[8px] tracking-[0.28em] uppercase">Field Log</p>
-        <p className="font-mono-ui text-[7px] tracking-[0.2em] uppercase mt-0.5">est. 2024 · Indonesia</p>
-      </div>
-      <p className="font-mono-ui text-[8.5px] tracking-[0.26em] uppercase">tap a cover to open</p>
-    </div>
   </div>
 );
+
+/*
+  Mobile shelf — a swipeable rail instead of the desktop fan.
+
+  The fan works on a wide screen because the covers have room to spread. On a
+  phone the same layout buries the second and third notebooks behind the first,
+  so only the front cover is ever readable. Here each notebook gets its own
+  snap position: one is centred and legible, the next peeks in from the edge to
+  advertise that there is more to swipe to.
+
+  Native scroll-snap does the work — it keeps the momentum and rubber-banding
+  the platform already provides, which a JS drag handler would have to imitate.
+*/
+const MobileShelf = ({ notebooks, onOpen }) => {
+  const trackRef = useRef(null);
+  const slideRefs = useRef([]);
+  const frame = useRef(null);
+  const lastActive = useRef(0);
+  const [active, setActive] = useState(0);
+
+  const syncActive = useCallback(() => {
+    const track = trackRef.current;
+    if (!track) return;
+    const mid = track.scrollLeft + track.clientWidth / 2;
+    let nearest = 0;
+    let best = Infinity;
+    slideRefs.current.forEach((el, i) => {
+      if (!el) return;
+      const d = Math.abs(el.offsetLeft + el.offsetWidth / 2 - mid);
+      if (d < best) { best = d; nearest = i; }
+    });
+    // Ticking from a ref rather than inside the state updater: React may invoke an
+    // updater more than once, and the sound must fire exactly once per change.
+    if (lastActive.current !== nearest) {
+      lastActive.current = nearest;
+      playPaperTick();
+    }
+    setActive(nearest);
+  }, []);
+
+  const onScroll = useCallback(() => {
+    cancelAnimationFrame(frame.current);
+    frame.current = requestAnimationFrame(syncActive);
+  }, [syncActive]);
+
+  useEffect(() => () => cancelAnimationFrame(frame.current), []);
+
+  const scrollTo = (i) => {
+    const el = slideRefs.current[i];
+    const track = trackRef.current;
+    if (!el || !track) return;
+    track.scrollTo({ left: el.offsetLeft - (track.clientWidth - el.offsetWidth) / 2, behavior: "smooth" });
+  };
+
+  return (
+    <div className="flex flex-col items-center w-full">
+      <div
+        ref={trackRef}
+        onScroll={onScroll}
+        className="shelf-track w-full flex items-center gap-[5vw] overflow-x-auto snap-x snap-mandatory px-[19vw] py-6"
+        style={{ perspective: "1000px" }}
+      >
+        {notebooks.map((nb, i) => {
+          const isActive = i === active;
+          return (
+            <button
+              key={nb.id}
+              ref={(el) => { slideRefs.current[i] = el; }}
+              data-testid={`notebook-${nb.slug}`}
+              aria-label={`Open ${nb.label} notebook`}
+              aria-current={isActive ? "true" : undefined}
+              onClick={() => (isActive ? onOpen(nb.slug) : scrollTo(i))}
+              className="shelf-slot relative w-[62vw] shrink-0 snap-center focus:outline-none"
+              style={{
+                transform: isActive ? "scale(1) rotate(0deg)" : "scale(0.9) rotate(-2deg)",
+                opacity: isActive ? 1 : 0.72,
+              }}
+            >
+              {hasBookmark(nb.slug) && <Ribbon />}
+              <NotebookCover variant={nb.variant} label={nb.label} coverTitle={nb.cover_title} subtitle={nb.subtitle} />
+            </button>
+          );
+        })}
+      </div>
+
+      {/* which notebook you are on, and a way back to the others */}
+      <div className="flex items-center gap-2 mt-1" role="tablist" aria-label="Notebooks">
+        {notebooks.map((nb, i) => (
+          <button
+            key={nb.id}
+            role="tab"
+            aria-selected={i === active}
+            aria-label={nb.label}
+            onClick={() => scrollTo(i)}
+            className={`shelf-dot h-[3px] rounded-full ${i === active ? "w-6 bg-neutral-600 dark:bg-neutral-300" : "w-[10px] bg-neutral-400/50 dark:bg-neutral-600"}`}
+          />
+        ))}
+      </div>
+
+      <p className="font-hand text-[15px] text-center leading-snug text-neutral-500 dark:text-neutral-400 mt-6 px-8">
+        stories, poems &amp; things<br />kind people said —
+      </p>
+
+      <div className="flex flex-col items-center gap-3 mt-5 text-neutral-400 dark:text-neutral-500">
+        <Stamp roomy className="-rotate-2 text-center" />
+        <p className="font-mono-ui text-[11px] tracking-[0.22em] uppercase">swipe · tap to open</p>
+      </div>
+    </div>
+  );
+};
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -90,6 +193,7 @@ const HomePage = () => {
   }, []);
 
   useEffect(() => {
+    if (isMobile) return undefined; // the parallax follows a pointer the phone does not have
     const onMove = (e) => {
       cancelAnimationFrame(frame.current);
       frame.current = requestAnimationFrame(() => {
@@ -98,7 +202,7 @@ const HomePage = () => {
     };
     window.addEventListener("mousemove", onMove);
     return () => { window.removeEventListener("mousemove", onMove); cancelAnimationFrame(frame.current); };
-  }, []);
+  }, [isMobile]);
 
   const onCardMove = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -107,59 +211,75 @@ const HomePage = () => {
     setTilt({ rx: -py * 14, ry: px * 16 });
   };
 
+  const openNotebook = (slug) => navigate(`/notebook/${slug}`);
+
   const n = notebooks.length;
-  const spread = isMobile
-    ? (n <= 3 ? 46 : n === 4 ? 39 : 33)
-    : (n <= 3 ? 63 : n === 4 ? 52 : 44);
+  const spread = n <= 3 ? 63 : n === 4 ? 52 : 44;
+
+  if (loading) {
+    return (
+      <main className="min-h-screen flex items-center justify-center">
+        <div className="font-mono-ui text-[11px] tracking-[0.2em] uppercase text-neutral-400 animate-pulse">opening the drawer…</div>
+      </main>
+    );
+  }
+
+  if (isMobile) {
+    return (
+      <main className="min-h-screen flex flex-col items-center justify-center overflow-x-hidden pt-24 pb-16">
+        <div className="text-center text-neutral-400 dark:text-neutral-500 mb-5" aria-hidden="true">
+          <p className="font-mono-ui text-[10px] tracking-[0.34em] uppercase">the field logs of</p>
+          <p className="font-logo text-[30px] text-neutral-700 dark:text-neutral-300 leading-tight mt-0.5">Juan</p>
+        </div>
+        <MobileShelf notebooks={notebooks} onOpen={openNotebook} />
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen flex items-center justify-center overflow-hidden relative">
       <DeskScene mx={mouse.mx} my={mouse.my} />
-      {loading ? (
-        <div className="font-mono-ui text-[10px] tracking-[0.2em] uppercase text-neutral-400 animate-pulse">opening the drawer…</div>
-      ) : (
-        <div className="relative w-[min(66vw,300px)] -mt-[6vh] sm:mt-[6vh]" style={{ aspectRatio: "300/460", maxHeight: "48vh", perspective: "1200px" }}>
-          {/* desk pad sheet anchoring the stack */}
-          <div
-            className="desk-pad absolute -inset-x-[46%] top-[-7%] bottom-[28%] rounded-xl pointer-events-none"
-            style={{ transform: `rotate(-1.2deg) translate(${mouse.mx * 4}px, ${mouse.my * 3}px)`, zIndex: 0 }}
-            aria-hidden="true"
-          >
-            <span className="absolute -top-2 left-[12%] w-14 h-4 bg-white/55 dark:bg-white/10 rotate-[-5deg] shadow-sm" />
-            <span className="absolute -bottom-2 right-[14%] w-14 h-4 bg-white/55 dark:bg-white/10 rotate-[4deg] shadow-sm" />
-          </div>
-          {notebooks.map((nb, i) => {
-            const x = (i - (n - 1) / 2) * spread;
-            const rot = ROTS[i % ROTS.length];
-            const isHover = hovered === nb.slug;
-            const transform = isHover
-              ? `translateX(${x}%) translateY(-20px) scale(1.08) rotate(0deg) rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg)`
-              : `translateX(${x}%) rotate(${rot}deg)`;
-            return (
-              <button
-                key={nb.id}
-                data-testid={`notebook-${nb.slug}`}
-                aria-label={`Open ${nb.label} notebook`}
-                onMouseEnter={() => { setHovered(nb.slug); playPaperTick(); }}
-                onMouseLeave={() => { setHovered(null); setTilt({ rx: 0, ry: 0 }); }}
-                onMouseMove={isHover ? onCardMove : undefined}
-                onClick={() => navigate(`/notebook/${nb.slug}`)}
-                className="absolute top-0 w-[62%] cursor-pointer notebook-slot focus:outline-none"
-                style={{
-                  left: "19%",
-                  zIndex: isHover ? 50 : 40 - i * 5,
-                  transform,
-                  transformStyle: "preserve-3d",
-                  filter: isHover ? "drop-shadow(0 30px 30px rgba(0,0,0,0.22))" : "none",
-                }}
-              >
-                {hasBookmark(nb.slug) && <Ribbon />}
-                <NotebookCover variant={nb.variant} label={nb.label} coverTitle={nb.cover_title} subtitle={nb.subtitle} />
-              </button>
-            );
-          })}
+      <div className="relative w-[min(66vw,300px)] mt-[6vh]" style={{ aspectRatio: "300/460", maxHeight: "48vh", perspective: "1200px" }}>
+        {/* desk pad sheet anchoring the stack */}
+        <div
+          className="desk-pad absolute -inset-x-[46%] top-[-7%] bottom-[28%] rounded-xl pointer-events-none"
+          style={{ transform: `rotate(-1.2deg) translate(${mouse.mx * 4}px, ${mouse.my * 3}px)`, zIndex: 0 }}
+          aria-hidden="true"
+        >
+          <span className="absolute -top-2 left-[12%] w-14 h-4 bg-white/55 dark:bg-white/10 rotate-[-5deg] shadow-sm" />
+          <span className="absolute -bottom-2 right-[14%] w-14 h-4 bg-white/55 dark:bg-white/10 rotate-[4deg] shadow-sm" />
         </div>
-      )}
+        {notebooks.map((nb, i) => {
+          const x = (i - (n - 1) / 2) * spread;
+          const rot = ROTS[i % ROTS.length];
+          const isHover = hovered === nb.slug;
+          const transform = isHover
+            ? `translateX(${x}%) translateY(-20px) scale(1.08) rotate(0deg) rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg)`
+            : `translateX(${x}%) rotate(${rot}deg)`;
+          return (
+            <button
+              key={nb.id}
+              data-testid={`notebook-${nb.slug}`}
+              aria-label={`Open ${nb.label} notebook`}
+              onMouseEnter={() => { setHovered(nb.slug); playPaperTick(); }}
+              onMouseLeave={() => { setHovered(null); setTilt({ rx: 0, ry: 0 }); }}
+              onMouseMove={isHover ? onCardMove : undefined}
+              onClick={() => openNotebook(nb.slug)}
+              className="absolute top-0 w-[62%] cursor-pointer notebook-slot focus:outline-none"
+              style={{
+                left: "19%",
+                zIndex: isHover ? 50 : 40 - i * 5,
+                transform,
+                transformStyle: "preserve-3d",
+                filter: isHover ? "drop-shadow(0 30px 30px rgba(0,0,0,0.22))" : "none",
+              }}
+            >
+              {hasBookmark(nb.slug) && <Ribbon />}
+              <NotebookCover variant={nb.variant} label={nb.label} coverTitle={nb.cover_title} subtitle={nb.subtitle} />
+            </button>
+          );
+        })}
+      </div>
     </main>
   );
 };

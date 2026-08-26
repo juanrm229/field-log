@@ -494,3 +494,55 @@
   0% { transform: translate(0, 0) rotate(0); }
   100% { transform: translate(24px, 52px) rotate(7deg); opacity: 0.15; }
 }
+
+/* ---- home: mobile notebook carousel ---- */
+.shelf-track {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.shelf-track::-webkit-scrollbar {
+  display: none;
+}
+.shelf-slot {
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s ease;
+  will-change: transform;
+}
+.shelf-dot {
+  transition: width 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease;
+}
+
+/* Cover type scales with the cover itself, not the viewport, so a small card on a
+   phone keeps the same proportions instead of collapsing to the clamp minimum.
+   The Tailwind vw-based sizes stay as the fallback where @container is missing. */
+@supports (container-type: inline-size) {
+  .notebook-cover {
+    container-type: inline-size;
+  }
+  .notebook-cover .cover-title {
+    font-size: clamp(13px, 14cqw, 30px);
+  }
+  .notebook-cover .cover-sub {
+    font-size: clamp(6.5px, 4.9cqw, 11px);
+  }
+  .notebook-cover .cover-label {
+    font-size: clamp(9px, 8.6cqw, 19px);
+  }
+  .notebook-cover .cover-back-title {
+    font-size: clamp(7px, 5.9cqw, 12px);
+  }
+  .notebook-cover .cover-back-sub {
+    font-size: clamp(6px, 3.8cqw, 8px);
+  }
+  .notebook-cover .cover-fin {
+    font-size: clamp(9px, 7.5cqw, 16px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shelf-slot,
+  .shelf-dot {
+    transition: none;
+  }
+}

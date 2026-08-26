@@ -190,17 +190,17 @@ const NotebookCover = ({ variant = "orange", label, subtitle = [], coverTitle = 
         <div className="absolute right-0 top-0 bottom-0 w-[6%] bg-gradient-to-l from-black/25 via-black/10 to-transparent" />
         <div className="absolute right-[5%] top-0 bottom-0 w-px bg-black/10" />
         <div className={`absolute inset-0 flex flex-col items-center justify-between px-[12%] py-[10%] ${s.sub}`}>
-          <p className={`font-cover ${large ? "text-[13px]" : "text-[clamp(7px,1vw,11px)]"} tracking-[0.28em] ${s.title}`}>{coverTitle || "FIELD LOG"}</p>
+          <p className={`font-cover ${large ? "text-[13px]" : "cover-back-title text-[clamp(7px,1vw,11px)]"} tracking-[0.28em] ${s.title}`}>{coverTitle || "FIELD LOG"}</p>
           <div className="text-center space-y-[6px]">
             <div className={`mx-auto w-10 h-px ${variant === "paper" || variant === "blue" ? "bg-black/20" : "bg-white/30"}`} />
             {subtitle.map((line, i) => (
-              <p key={i} className={`font-mono-ui ${large ? "text-[8.5px]" : "text-[clamp(4.5px,0.7vw,7px)]"} tracking-[0.16em] uppercase leading-relaxed`}>{line}</p>
+              <p key={i} className={`font-mono-ui ${large ? "text-[8.5px]" : "cover-back-sub text-[clamp(4.5px,0.7vw,7px)]"} tracking-[0.16em] uppercase leading-relaxed`}>{line}</p>
             ))}
-            <p className={`font-mono-ui ${large ? "text-[8.5px]" : "text-[clamp(4.5px,0.7vw,7px)]"} tracking-[0.16em] uppercase`}>48 pages / smooth graph paper</p>
-            <p className={`font-mono-ui ${large ? "text-[8.5px]" : "text-[clamp(4.5px,0.7vw,7px)]"} tracking-[0.16em] uppercase`}>Written by Juan / Logged by Koda</p>
+            <p className={`font-mono-ui ${large ? "text-[8.5px]" : "cover-back-sub text-[clamp(4.5px,0.7vw,7px)]"} tracking-[0.16em] uppercase`}>48 pages / smooth graph paper</p>
+            <p className={`font-mono-ui ${large ? "text-[8.5px]" : "cover-back-sub text-[clamp(4.5px,0.7vw,7px)]"} tracking-[0.16em] uppercase`}>Written by Juan / Logged by Koda</p>
             <div className={`mx-auto w-10 h-px ${variant === "paper" || variant === "blue" ? "bg-black/20" : "bg-white/30"}`} />
           </div>
-          <p className={`font-hand ${large ? "text-[18px]" : "text-[clamp(9px,1.4vw,14px)]"} ${s.label}`}>fin.</p>
+          <p className={`font-hand ${large ? "text-[18px]" : "cover-fin text-[clamp(9px,1.4vw,14px)]"} ${s.label}`}>fin.</p>
         </div>
         <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(245deg, rgba(255,255,255,0.10) 0%, transparent 30%, transparent 75%, rgba(0,0,0,0.06) 100%)" }} />
       </div>
@@ -228,12 +228,12 @@ const NotebookCover = ({ variant = "orange", label, subtitle = [], coverTitle = 
 
       {/* cover print */}
       <div className="absolute inset-0 flex flex-col items-center pt-[13%] px-[10%]">
-        <h2 className={`font-cover ${s.title} ${large ? "text-[clamp(28px,4.6vh,44px)]" : "text-[clamp(15px,2.6vw,26px)]"} leading-[1.05] tracking-[0.22em] text-center whitespace-pre-line`}>
+        <h2 className={`font-cover ${s.title} ${large ? "text-[clamp(28px,4.6vh,44px)]" : "cover-title text-[clamp(15px,2.6vw,26px)]"} leading-[1.05] tracking-[0.22em] text-center whitespace-pre-line`}>
           {titleText}
         </h2>
         <div className={`mt-[7%] text-center ${s.sub}`}>
           {subtitle.map((line, i) => (
-            <p key={i} className={`font-semibold ${large ? "text-[11px]" : "text-[clamp(5px,0.85vw,9px)]"} tracking-wide leading-snug`}>
+            <p key={i} className={`font-semibold ${large ? "text-[11px]" : "cover-sub text-[clamp(5px,0.85vw,9px)]"} tracking-wide leading-snug`}>
               {line}
             </p>
           ))}
@@ -241,7 +241,7 @@ const NotebookCover = ({ variant = "orange", label, subtitle = [], coverTitle = 
       </div>
 
       {/* handwritten label */}
-      <p className={`absolute bottom-[4.5%] left-0 right-0 text-center font-hand ${s.label} ${large ? "text-[22px]" : "text-[clamp(10px,1.6vw,16px)]"}`}>
+      <p className={`absolute bottom-[4.5%] left-0 right-0 text-center font-hand ${s.label} ${large ? "text-[22px]" : "cover-label text-[clamp(10px,1.6vw,16px)]"}`}>
         {label}
       </p>
 
