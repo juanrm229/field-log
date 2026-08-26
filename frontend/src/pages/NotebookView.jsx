@@ -409,8 +409,13 @@ const NotebookView = () => {
     return isSpread(views[view]) && isSpread(target);
   };
 
+  // ignore flips/drags that start on an interactive element (Read button, TOC, inputs…)
+  const isInteractive = (e) =>
+    !!(e.target && e.target.closest && e.target.closest('button, a, input, textarea, [role="button"], [contenteditable="true"]'));
+
   const onPointerDown = (e) => {
     if (flip || closing || drag) return;
+    if (isInteractive(e)) { dragRef.current = null; return; }
     const rect = e.currentTarget.getBoundingClientRect();
     dragRef.current = { x: e.clientX, width: rect.width, dir: null };
   };

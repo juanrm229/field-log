@@ -58,6 +58,18 @@ const DeskScene = ({ mx, my }) => (
     <p className="absolute hidden sm:block font-mono-ui text-[8.5px] tracking-[0.26em] uppercase" style={{ right: "24%", bottom: "18%", transform: `rotate(1.5deg) translate(${mx * -8}px, ${my * -5}px)` }}>
       pick one to open →
     </p>
+
+    {/* mobile-only caption fills the lower half of the desk */}
+    <div className="absolute inset-x-0 bottom-[13%] flex flex-col items-center gap-3 sm:hidden">
+      <p className="font-hand text-[16px] text-center leading-snug text-neutral-400 dark:text-neutral-500 px-8">
+        stories, poems &amp; things<br />kind people said —
+      </p>
+      <div className="border-[1.5px] border-current rounded-[3px] px-3 py-1.5 opacity-60 -rotate-2 text-center">
+        <p className="font-mono-ui text-[8px] tracking-[0.28em] uppercase">Field Log</p>
+        <p className="font-mono-ui text-[7px] tracking-[0.2em] uppercase mt-0.5">est. 2024 · Indonesia</p>
+      </div>
+      <p className="font-mono-ui text-[8.5px] tracking-[0.26em] uppercase">tap a cover to open</p>
+    </div>
   </div>
 );
 
@@ -66,8 +78,16 @@ const HomePage = () => {
   const [hovered, setHovered] = useState(null);
   const [tilt, setTilt] = useState({ rx: 0, ry: 0 });
   const [mouse, setMouse] = useState({ mx: 0, my: 0 });
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 639px)").matches);
   const { notebooks, loading } = useNotebooks();
   const frame = useRef(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const onChange = (e) => setIsMobile(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   useEffect(() => {
     const onMove = (e) => {
@@ -88,7 +108,9 @@ const HomePage = () => {
   };
 
   const n = notebooks.length;
-  const spread = n <= 3 ? 63 : n === 4 ? 52 : 44;
+  const spread = isMobile
+    ? (n <= 3 ? 46 : n === 4 ? 39 : 33)
+    : (n <= 3 ? 63 : n === 4 ? 52 : 44);
 
   return (
     <main className="min-h-screen flex items-center justify-center overflow-hidden relative">
@@ -96,7 +118,7 @@ const HomePage = () => {
       {loading ? (
         <div className="font-mono-ui text-[10px] tracking-[0.2em] uppercase text-neutral-400 animate-pulse">opening the drawer…</div>
       ) : (
-        <div className="relative w-[min(58vw,300px)]" style={{ aspectRatio: "300/460", maxHeight: "50vh", perspective: "1200px", marginTop: "6vh" }}>
+        <div className="relative w-[min(66vw,300px)] -mt-[6vh] sm:mt-[6vh]" style={{ aspectRatio: "300/460", maxHeight: "48vh", perspective: "1200px" }}>
           {/* desk pad sheet anchoring the stack */}
           <div
             className="desk-pad absolute -inset-x-[46%] top-[-7%] bottom-[28%] rounded-xl pointer-events-none"

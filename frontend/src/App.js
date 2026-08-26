@@ -33,7 +33,7 @@ const Footer = () => (
 );
 
 function App() {
-  const [theme, setThemeState] = useState(() => localStorage.getItem("theme") || "light");
+  const [theme, setThemeState] = useState(() => localStorage.getItem("theme") || "dark");
 
   const setTheme = (t) => {
     setThemeState(t);
