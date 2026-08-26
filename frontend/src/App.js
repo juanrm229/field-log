@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import "./App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import BlueprintBackground from "./components/BlueprintBackground";
 import Header from "./components/Header";
 import HomePage from "./pages/HomePage";
@@ -19,6 +19,13 @@ const applyTheme = (theme) => {
   const root = document.documentElement;
   const dark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   root.classList.toggle("dark", dark);
+};
+
+// Re-keyed on every path change so the fade replays. Wrapping Routes rather
+// than each page keeps the animation in one place.
+const RouteFade = ({ children }) => {
+  const { pathname } = useLocation();
+  return <div key={pathname} className="route-fade">{children}</div>;
 };
 
 const Footer = () => (
@@ -51,15 +58,17 @@ function App() {
           <BlueprintBackground />
           <InkCursor />
           <Header theme={theme} setTheme={setTheme} />
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/notebook/:slug" element={<NotebookView />} />
-            <Route path="/wall" element={<WallPage />} />
-            <Route path="/now-writing" element={<NowWritingPage />} />
-            <Route path="/archive" element={<ArchivePage />} />
-            <Route path="/studio" element={<Studio />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <RouteFade>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/notebook/:slug" element={<NotebookView />} />
+              <Route path="/wall" element={<WallPage />} />
+              <Route path="/now-writing" element={<NowWritingPage />} />
+              <Route path="/archive" element={<ArchivePage />} />
+              <Route path="/studio" element={<Studio />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </RouteFade>
           <Footer />
           <MusicPlayer />
           <Toaster position="bottom-center" />

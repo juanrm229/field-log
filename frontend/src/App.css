@@ -546,3 +546,55 @@
     transition: none;
   }
 }
+
+/* ---- viewport height that matches what the phone actually shows ----
+   100vh on mobile is the height with the browser chrome hidden, so a
+   "full screen" page is always taller than the visible area and the address
+   bar forces a scroll. dvh tracks the real visible height. Kept behind
+   @supports so older browsers keep the vh behaviour rather than nothing. */
+@supports (min-height: 100dvh) {
+  .min-h-screen {
+    min-height: 100dvh;
+  }
+}
+
+/* ---- route transition ----
+   Opacity only, deliberately: a transform on this wrapper would become the
+   containing block for the position:fixed overlays inside the pages (the
+   Reader, the search overlay) and break them mid-animation. */
+.route-fade {
+  animation: route-in 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes route-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ---- keyboard focus ----
+   The interactive elements all set focus:outline-none for the mouse, which
+   left keyboard users with no indication of where they were. :focus-visible
+   only fires for keyboard navigation, so the mouse experience is unchanged. */
+:focus-visible {
+  outline: 2px solid #f94b0c;
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-fade {
+    animation: none;
+  }
+}
+
+/* The archive panel scrolls inside itself on a phone; without an edge treatment
+   a row cut off at the bottom just looks like a rendering fault. */
+.year-panel-scroll {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%);
+}
+@media (min-width: 640px) {
+  .year-panel-scroll {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}

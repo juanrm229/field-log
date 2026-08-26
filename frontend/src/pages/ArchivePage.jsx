@@ -9,6 +9,14 @@ const ArchivePage = () => {
   const navigate = useNavigate();
   const [years, setYears] = useState(null);
   const [sel, setSel] = useState(null);
+  const [compact, setCompact] = useState(() => window.matchMedia("(max-width: 639px)").matches);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const onChange = (e) => setCompact(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   useEffect(() => {
     getArchive().then((d) => {
@@ -28,11 +36,14 @@ const ArchivePage = () => {
   const selected = years.find((y) => y.year === sel);
 
   return (
-    <main className="min-h-screen pt-24 pb-20 px-4 sm:px-8 max-w-3xl mx-auto">
-      <div className="text-center mb-10">
+    /* On a phone the whole archive has to sit in one screen, so the page itself
+       is a fixed-height column and the year's contents scroll inside their own
+       panel. From sm up the page scrolls normally again. */
+    <main className="h-[100dvh] sm:h-auto sm:min-h-screen flex flex-col overflow-hidden sm:overflow-visible pt-20 sm:pt-24 pb-14 sm:pb-20 px-4 sm:px-8 max-w-3xl mx-auto">
+      <div className="text-center mb-4 sm:mb-10 shrink-0">
         <p className="font-mono-ui text-[10px] tracking-[0.3em] uppercase text-[#f94b0c] mb-1">The Archive</p>
         <h1 className="font-cover text-xl text-neutral-900 dark:text-neutral-100">A shelf of years</h1>
-        <p className="font-hand text-[17px] text-neutral-400 mt-1">pull a spine to see what that year held</p>
+        <p className="font-hand text-[15px] sm:text-[17px] text-neutral-400 mt-1">pull a spine to see what that year held</p>
       </div>
 
       {years.length === 0 ? (
@@ -43,8 +54,8 @@ const ArchivePage = () => {
       ) : (
         <>
           {/* the shelf */}
-          <div className="relative mx-auto max-w-xl" data-testid="archive-shelf">
-            <div className="flex items-end justify-center gap-2.5 px-6 min-h-[230px]">
+          <div className="relative mx-auto max-w-xl w-full shrink-0" data-testid="archive-shelf">
+            <div className="flex items-end justify-center gap-2.5 px-6 min-h-[150px] sm:min-h-[230px]">
               {years.map((y, i) => {
                 const active = y.year === sel;
                 return (
@@ -55,7 +66,7 @@ const ArchivePage = () => {
                     className={`book-spine ${active ? "book-spine-active" : ""}`}
                     style={{
                       background: SPINE_COLORS[i % SPINE_COLORS.length],
-                      height: 150 + Math.min(y.count * 10, 60),
+                      height: (compact ? 92 : 150) + Math.min(y.count * (compact ? 6 : 10), compact ? 36 : 60),
                     }}
                     aria-label={`Open year ${y.year}`}
                   >
@@ -74,7 +85,7 @@ const ArchivePage = () => {
 
           {/* selected year contents */}
           {selected && (
-            <div key={selected.year} className="mt-10 cream-page rounded-xl shadow-lg px-6 sm:px-9 py-7 year-panel" data-testid={`year-panel-${selected.year}`}>
+            <div key={selected.year} className="mt-4 sm:mt-10 cream-page rounded-xl shadow-lg px-6 sm:px-9 py-5 sm:py-7 year-panel flex-1 min-h-0 sm:flex-none overflow-y-auto year-panel-scroll" data-testid={`year-panel-${selected.year}`}>
               <div className="flex items-baseline justify-between mb-4 border-b border-dashed border-neutral-400/50 pb-2">
                 <h2 className="font-hand font-bold text-[26px] text-[#2a2620]">{selected.year}</h2>
                 <span className="font-mono-ui text-[9px] tracking-[0.18em] uppercase text-neutral-400">
@@ -87,17 +98,22 @@ const ArchivePage = () => {
                     key={e.id}
                     data-testid={`archive-entry-${e.id}`}
                     onClick={() => navigate(`/notebook/${e.notebook_slug}?entry=${e.id}`)}
-                    className="w-full flex items-baseline gap-2 text-left group py-1.5"
+                    className="w-full text-left group py-1.5 flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
                   >
+                    {/* A long title wraps to two lines on a phone, which used to
+                        drag the badge and the word count out of alignment. Below
+                        sm the meta drops to its own line instead. */}
                     <span className="font-hand text-[17px] text-[#2a2620] group-hover:text-[#f94b0c] transition-colors underline decoration-dashed decoration-neutral-400/50 underline-offset-4">
                       {e.title}
                     </span>
-                    {e.category && (
-                      <span className="font-mono-ui text-[8px] tracking-[0.16em] uppercase text-white bg-[#f94b0c] px-1.5 py-0.5 rounded-sm shrink-0">{e.category}</span>
-                    )}
-                    <span className="flex-1 border-b border-dotted border-neutral-400/40 mx-1" />
-                    <span className="font-mono-ui text-[8.5px] uppercase tracking-wider text-neutral-400 shrink-0">
-                      {e.words.toLocaleString()} w · {e.minutes} min
+                    <span className="flex items-baseline gap-2 mt-0.5 sm:mt-0 sm:contents">
+                      {e.category && (
+                        <span className="font-mono-ui text-[8px] tracking-[0.16em] uppercase text-white bg-[#f94b0c] px-1.5 py-0.5 rounded-sm shrink-0">{e.category}</span>
+                      )}
+                      <span className="flex-1 border-b border-dotted border-neutral-400/40 mx-1" />
+                      <span className="font-mono-ui text-[8.5px] uppercase tracking-wider text-neutral-400 shrink-0">
+                        {e.words.toLocaleString()} w · {e.minutes} min
+                      </span>
                     </span>
                   </button>
                 ))}
