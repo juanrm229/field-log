@@ -1,0 +1,8 @@
+# Test-only dependencies
+-r requirements.txt
+
+# Newest releases of both need Python >=3.10; these are the last that run on 3.9.
+pytest==8.4.2
+requests==2.32.5
+
+pytest-xdist==3.8.0

@@ -1,11 +1,13 @@
 import os
 import uuid
+from pathlib import Path
 
 import pytest
 import requests
 from dotenv import dotenv_values
 
-frontend_env = dotenv_values("/app/frontend/.env")
+REPO_ROOT = Path(__file__).resolve().parents[2]
+frontend_env = dotenv_values(REPO_ROOT / "frontend" / ".env")
 base_url = os.environ.get("REACT_APP_BACKEND_URL") or frontend_env.get("REACT_APP_BACKEND_URL")
 if not base_url:
     raise RuntimeError("REACT_APP_BACKEND_URL missing")

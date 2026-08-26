@@ -2,13 +2,13 @@ from fastapi import FastAPI, APIRouter, HTTPException, Header, UploadFile, File
 from fastapi.responses import Response
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
 import os
 import re
 import asyncio
 import logging
 import resend
-import requests
+from bson import ObjectId
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional
@@ -38,43 +38,9 @@ SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
 
 EMAIL_RX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
-# ---------- Object storage (background music) ----------
-STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
-STORAGE_URL = STORAGE_BASE.rstrip("/") + "/objstore/api/v1/storage"
-EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
-APP_NAME = "fieldlog"
-storage_key = None
+# ---------- Audio storage (background music, stored in MongoDB GridFS) ----------
+music_bucket = AsyncIOMotorGridFSBucket(db, bucket_name="music")
 _music_cache = {}
-
-
-def init_storage(force: bool = False):
-    global storage_key
-    if storage_key and not force:
-        return storage_key
-    resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
-    resp.raise_for_status()
-    storage_key = resp.json()["storage_key"]
-    return storage_key
-
-
-def put_object(path: str, data: bytes, content_type: str) -> dict:
-    key = init_storage()
-    resp = requests.put(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key, "Content-Type": content_type}, data=data, timeout=120)
-    if resp.status_code == 404:
-        key = init_storage(force=True)
-        resp = requests.put(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key, "Content-Type": content_type}, data=data, timeout=120)
-    resp.raise_for_status()
-    return resp.json()
-
-
-def get_object(path: str):
-    key = init_storage()
-    resp = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
-    if resp.status_code == 404:
-        key = init_storage(force=True)
-        resp = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
-    resp.raise_for_status()
-    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
 
 
 def require_studio_key(x_studio_key: Optional[str]):
@@ -619,6 +585,26 @@ async def archive():
 
 # ---------- Background music (owner uploads, plays site-wide) ----------
 AUDIO_EXTS = (".mp3", ".m4a", ".ogg", ".wav", ".aac")
+AUDIO_TYPES = {"mp3": "audio/mpeg", "m4a": "audio/mp4", "ogg": "audio/ogg",
+               "wav": "audio/wav", "aac": "audio/aac"}
+
+
+def audio_content_type(filename: str, declared: str) -> str:
+    """Trust the browser only when it declares an audio type; otherwise use the extension."""
+    if declared.startswith("audio/"):
+        return declared
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    return AUDIO_TYPES.get(ext, "audio/mpeg")
+
+
+async def drop_music_file(doc):
+    """Remove a GridFS audio file that is no longer referenced. Missing files are fine."""
+    if not doc or not doc.get("gridfs_id"):
+        return
+    try:
+        await music_bucket.delete(ObjectId(doc["gridfs_id"]))
+    except Exception as e:
+        logger.warning(f"could not delete old music file: {e}")
 
 
 @api_router.get("/music")
@@ -639,15 +625,16 @@ async def upload_music(file: UploadFile = File(...), x_studio_key: Optional[str]
     data = await file.read()
     if len(data) > 20 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="audio file too large (max 20MB)")
-    ext = name.split(".")[-1].lower() if "." in name else "mp3"
-    path = f"{APP_NAME}/music/{uuid.uuid4()}.{ext}"
-    result = await asyncio.to_thread(put_object, path, data, ct or "audio/mpeg")
+    content_type = audio_content_type(name, ct)
+    previous = await db.settings.find_one({"_id": "music"})
+    file_id = await music_bucket.upload_from_stream(name or "music", data, metadata={"content_type": content_type})
     await db.settings.update_one(
         {"_id": "music"},
-        {"$set": {"storage_path": result["path"], "filename": name, "content_type": ct or "audio/mpeg",
+        {"$set": {"gridfs_id": str(file_id), "filename": name, "content_type": content_type,
                   "updated_at": datetime.now(timezone.utc).isoformat()}},
         upsert=True,
     )
+    await drop_music_file(previous)
     _music_cache.clear()
     return {"ok": True, "filename": name}
 
@@ -657,22 +644,27 @@ async def stream_music():
     doc = await db.settings.find_one({"_id": "music"})
     if not doc:
         raise HTTPException(status_code=404, detail="no music uploaded")
-    path = doc["storage_path"]
-    if path not in _music_cache:
-        data, ct = await asyncio.to_thread(get_object, path)
+    file_id = doc.get("gridfs_id")
+    if not file_id:
+        raise HTTPException(status_code=404, detail="no music uploaded")
+    if file_id not in _music_cache:
+        stream = await music_bucket.open_download_stream(ObjectId(file_id))
+        data = await stream.read()
         _music_cache.clear()
-        _music_cache[path] = (data, doc.get("content_type") or ct)
-    data, ct = _music_cache[path]
+        _music_cache[file_id] = (data, doc.get("content_type") or "audio/mpeg")
+    data, ct = _music_cache[file_id]
     return Response(content=data, media_type=ct, headers={"Cache-Control": "public, max-age=3600", "Accept-Ranges": "bytes"})
 
 
 @api_router.delete("/music")
 async def delete_music(x_studio_key: Optional[str] = Header(None)):
     require_studio_key(x_studio_key)
+    doc = await db.settings.find_one({"_id": "music"})
     result = await db.settings.delete_one({"_id": "music"})
     _music_cache.clear()
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="no music to delete")
+    await drop_music_file(doc)
     return {"deleted": True}
 
 
@@ -704,15 +696,6 @@ async def seed_if_empty():
             entry = Entry(notebook_id=nb.id, order=j, **e)
             await db.entries.insert_one(entry.model_dump())
     logger.info("Seed complete.")
-
-
-@app.on_event("startup")
-async def init_storage_on_boot():
-    try:
-        await asyncio.to_thread(init_storage)
-        logger.info("Object storage initialized")
-    except Exception as e:
-        logger.error(f"Object storage init failed: {e}")
 
 
 @app.on_event("shutdown")

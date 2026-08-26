@@ -86,3 +86,7 @@ android-sdk/
 credentials.json
 *.key
 .credentials
+
+# Keep the committed templates (the rules above would otherwise hide them)
+!.env.example
+!**/.env.example
