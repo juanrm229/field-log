@@ -129,6 +129,18 @@ def slugify(text: str) -> str:
     return s or str(uuid.uuid4())[:8]
 
 
+async def unique_entry_slug(title: str, preferred: str = "", exclude_id: str = "") -> str:
+    """A slug nobody else is using. Falls back to the title, then to a fragment
+    of the id when the title is empty or all punctuation."""
+    base = slugify(preferred or title or "")
+    query = {"slug": base}
+    if exclude_id:
+        query["id"] = {"$ne": exclude_id}
+    if await db.entries.find_one(query):
+        return f"{base}-{str(uuid.uuid4())[:4]}"
+    return base
+
+
 # ---------- Models ----------
 class Chapter(BaseModel):
     title: str = ""
@@ -166,6 +178,10 @@ class NotebookUpdate(BaseModel):
 class Entry(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     notebook_id: str
+    # Readable address for a piece: /read/{slug}. Assigned once and then left
+    # alone even if the title changes — a slug that moves breaks every link
+    # anyone has already shared.
+    slug: str = ""
     type: str = "piece"  # piece | about | kind
     category: str = ""
     title: str = ""
@@ -180,6 +196,7 @@ class Entry(BaseModel):
 
 class EntryCreate(BaseModel):
     notebook_id: str
+    slug: Optional[str] = None
     type: str = "piece"
     category: str = ""
     title: str = ""
@@ -192,6 +209,7 @@ class EntryCreate(BaseModel):
 
 
 class EntryUpdate(BaseModel):
+    slug: Optional[str] = None
     type: Optional[str] = None
     category: Optional[str] = None
     title: Optional[str] = None
@@ -288,6 +306,18 @@ async def notebook_full(slug: str, x_studio_key: Optional[str] = Header(None)):
     return {"notebook": clean(nb), "entries": [clean(e) for e in entries]}
 
 
+@api_router.get("/read/{slug}")
+async def read_by_slug(slug: str):
+    """One piece and the notebook it belongs to, addressed by its own name."""
+    entry = await db.entries.find_one({"slug": slug})
+    if not entry:
+        raise HTTPException(status_code=404, detail="piece not found")
+    nb = await db.notebooks.find_one({"id": entry["notebook_id"]})
+    if not nb:
+        raise HTTPException(status_code=404, detail="notebook not found")
+    return {"entry": clean(entry), "notebook": clean(nb)}
+
+
 @api_router.get("/search")
 async def search_entries(q: str = ""):
     q = q.strip()
@@ -318,6 +348,7 @@ async def search_entries(q: str = ""):
         snippet = body[max(0, idx - 40): idx + 80].strip() if idx >= 0 else body[:110].strip()
         results.append({
             "id": e["id"],
+            "slug": e.get("slug", ""),
             "title": e.get("title", ""),
             "category": e.get("category", ""),
             "type": e.get("type", "piece"),
@@ -337,7 +368,8 @@ async def create_entry(payload: EntryCreate, x_studio_key: Optional[str] = Heade
     if payload.type not in {"piece", "about", "kind"}:
         raise HTTPException(status_code=400, detail="type must be piece, about or kind")
     order = payload.order if payload.order is not None else await next_order("entries", {"notebook_id": payload.notebook_id})
-    entry = Entry(**{**payload.model_dump(exclude={"order"}), "order": order})
+    slug = await unique_entry_slug(payload.title, payload.slug or "")
+    entry = Entry(**{**payload.model_dump(exclude={"order", "slug"}), "order": order, "slug": slug})
     await db.entries.insert_one(entry.model_dump())
     return entry.model_dump()
 
@@ -350,6 +382,14 @@ async def update_entry(entry_id: str, payload: EntryUpdate, x_studio_key: Option
         raise HTTPException(status_code=400, detail="type must be piece, about or kind")
     if not updates:
         raise HTTPException(status_code=400, detail="no fields to update")
+
+    current = await db.entries.find_one({"id": entry_id})
+    if current:
+        if "slug" in updates:
+            # An explicit rename, which the owner is choosing to make.
+            updates["slug"] = await unique_entry_slug(updates.get("title", current.get("title", "")), updates["slug"], entry_id)
+        elif not current.get("slug"):
+            updates["slug"] = await unique_entry_slug(updates.get("title", current.get("title", "")), "", entry_id)
     result = await db.entries.update_one({"id": entry_id}, {"$set": updates})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="entry not found")
@@ -584,6 +624,7 @@ async def archive():
         words = len(text.split())
         years.setdefault(year, []).append({
             "id": e["id"],
+            "slug": e.get("slug", ""),
             "title": e.get("title", ""),
             "category": e.get("category", ""),
             "date": e.get("date", ""),
@@ -713,9 +754,22 @@ async def seed_if_empty():
                       subtitle=nb_data["subtitle"], variant=nb_data["variant"], order=i)
         await db.notebooks.insert_one(nb.model_dump())
         for j, e in enumerate(nb_data["entries"]):
-            entry = Entry(notebook_id=nb.id, order=j, **e)
+            entry = Entry(notebook_id=nb.id, order=j, slug=await unique_entry_slug(e.get("title", "")), **e)
             await db.entries.insert_one(entry.model_dump())
     logger.info("Seed complete.")
+
+
+@app.on_event("startup")
+async def backfill_entry_slugs():
+    """Entries written before slugs existed still need an address. Runs on every
+    boot and does nothing once they all have one."""
+    missing = await db.entries.find({"$or": [{"slug": {"$exists": False}}, {"slug": ""}]}).to_list(None)
+    if not missing:
+        return
+    for e in missing:
+        slug = await unique_entry_slug(e.get("title", ""), "", e["id"])
+        await db.entries.update_one({"id": e["id"]}, {"$set": {"slug": slug}})
+    logger.info(f"Assigned slugs to {len(missing)} entries")
 
 
 @app.on_event("shutdown")

@@ -46,7 +46,7 @@ const SearchOverlay = ({ open, onClose }) => {
 
   const openResult = (r) => {
     onClose();
-    navigate(`/notebook/${r.notebook_slug}?entry=${r.id}`);
+    navigate(r.slug ? `/read/${r.slug}` : `/notebook/${r.notebook_slug}?entry=${r.id}`);
   };
 
   const onKeyDown = (e) => {

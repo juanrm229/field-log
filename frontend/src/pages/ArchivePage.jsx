@@ -110,7 +110,7 @@ const ArchivePage = () => {
                   <button
                     key={e.id}
                     data-testid={`archive-entry-${e.id}`}
-                    onClick={() => navigate(`/notebook/${e.notebook_slug}?entry=${e.id}`)}
+                    onClick={() => navigate(e.slug ? `/read/${e.slug}` : `/notebook/${e.notebook_slug}?entry=${e.id}`)}
                     className="w-full text-left group py-1.5 flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
                   >
                     {/* A long title wraps to two lines on a phone, which used to

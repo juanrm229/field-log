@@ -29,12 +29,10 @@ export default async function handler(req, res) {
       for (const nb of notebooks) {
         urls.push({ loc: `${origin}/notebook/${nb.slug}`, priority: "0.9" });
 
-        // Pieces are addressed with ?entry=<id> on their notebook, so that is
-        // the only URL a search engine can be pointed at today.
         const full = await fetch(`${BACKEND}/api/notebooks/${nb.slug}/full`).then((r) => r.json());
         for (const entry of full.entries || []) {
-          if (entry.type !== "piece") continue;
-          urls.push({ loc: `${origin}/notebook/${nb.slug}?entry=${entry.id}`, priority: "0.8" });
+          if (entry.type !== "piece" || !entry.slug) continue;
+          urls.push({ loc: `${origin}/read/${entry.slug}`, priority: "0.8" });
         }
       }
     } catch (e) {

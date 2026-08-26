@@ -22,6 +22,8 @@ export const studioAuth = async (password) => (await axios.post(`${API}/studio/a
 export const getNotebooks = async () => (await axios.get(`${API}/notebooks`)).data;
 export const getNotebookFull = async (slug) => (await axios.get(`${API}/notebooks/${slug}/full`)).data;
 export const searchEntries = async (q) => (await axios.get(`${API}/search`, { params: { q } })).data;
+// One piece by its own readable address, for /read/:slug
+export const getReadBySlug = async (slug) => (await axios.get(`${API}/read/${slug}`)).data;
 
 // studio read (includes drafts when key is set)
 export const getNotebookFullStudio = async (slug) => (await axios.get(`${API}/notebooks/${slug}/full`, auth())).data;

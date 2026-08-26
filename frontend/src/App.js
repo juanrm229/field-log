@@ -9,6 +9,7 @@ import HomePage from "./pages/HomePage";
 // fetched when it is first opened — most visitors never reach Studio at all,
 // and it is the largest page in the app.
 const NotebookView = lazy(() => import("./pages/NotebookView"));
+const ReadPage = lazy(() => import("./pages/ReadPage"));
 const Studio = lazy(() => import("./pages/Studio"));
 const WallPage = lazy(() => import("./pages/WallPage"));
 const NowWritingPage = lazy(() => import("./pages/NowWritingPage"));
@@ -75,6 +76,7 @@ function App() {
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/notebook/:slug" element={<NotebookView />} />
+              <Route path="/read/:slug" element={<ReadPage />} />
               <Route path="/wall" element={<WallPage />} />
               <Route path="/now-writing" element={<NowWritingPage />} />
               <Route path="/archive" element={<ArchivePage />} />
