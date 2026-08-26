@@ -4,6 +4,7 @@ import NotebookCover from "../components/NotebookCover";
 import { useNotebooks } from "../context/NotebooksContext";
 import { hasBookmark } from "../lib/bookmarks";
 import { playPaperTick } from "../lib/sounds";
+import LoadError from "../components/LoadError";
 
 const ROTS = [-7, -2, 3, -4, 2, -3, 4];
 
@@ -182,7 +183,7 @@ const HomePage = () => {
   const [tilt, setTilt] = useState({ rx: 0, ry: 0 });
   const [mouse, setMouse] = useState({ mx: 0, my: 0 });
   const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 639px)").matches);
-  const { notebooks, loading } = useNotebooks();
+  const { notebooks, loading, error, refresh } = useNotebooks();
   const frame = useRef(null);
 
   useEffect(() => {
@@ -220,6 +221,14 @@ const HomePage = () => {
     return (
       <main className="min-h-screen flex items-center justify-center">
         <div className="font-mono-ui text-[11px] tracking-[0.2em] uppercase text-neutral-400 animate-pulse">opening the drawer…</div>
+      </main>
+    );
+  }
+
+  if (error) {
+    return (
+      <main className="min-h-screen flex items-center justify-center">
+        <LoadError what="The notebooks" onRetry={refresh} />
       </main>
     );
   }

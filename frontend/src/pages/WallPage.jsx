@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import LoadError from "../components/LoadError";
 import { toast } from "sonner";
 import { getNotes, submitNote } from "../api";
 import { Plus } from "lucide-react";
@@ -33,13 +34,19 @@ const Tape = () => (
 
 const WallPage = () => {
   const [notes, setNotes] = useState(null);
+  const [failed, setFailed] = useState(false);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", message: "", color: "lemon" });
   const [sending, setSending] = useState(false);
 
-  useEffect(() => {
-    getNotes().then(setNotes).catch(() => setNotes([]));
+  const load = useCallback(() => {
+    setFailed(false);
+    setNotes(null);
+    // An empty board and an unreachable board used to render identically.
+    getNotes().then(setNotes).catch(() => { setFailed(true); setNotes([]); });
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const send = async () => {
     if (form.message.trim().length < 3 || sending) return;
@@ -97,7 +104,11 @@ const WallPage = () => {
                 </div>
               </div>
 
-              {notes.length === 0 ? (
+              {failed ? (
+                <div className="col-span-2">
+                  <LoadError what="The notes" onRetry={load} />
+                </div>
+              ) : notes.length === 0 ? (
                 <div className="note-drop col-span-2" style={{ animationDelay: "140ms" }}>
                   <div className="pinned-note relative p-4 pt-6 min-h-[150px] flex flex-col justify-center shadow-md note-paper" style={{ "--rot": "-1.5deg", background: COLORS.lemon }}>
                     <Pin color="#2f5d43" />

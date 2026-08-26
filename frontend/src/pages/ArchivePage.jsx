@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getArchive } from "../api";
 import { Library } from "lucide-react";
+import LoadError from "../components/LoadError";
 
 const SPINE_COLORS = ["#f94b0c", "#3b66a8", "#2f5d43", "#a4243b", "#465260", "#8a5a33"];
 
@@ -9,6 +10,7 @@ const ArchivePage = () => {
   const navigate = useNavigate();
   const [years, setYears] = useState(null);
   const [sel, setSel] = useState(null);
+  const [failed, setFailed] = useState(false);
   const [compact, setCompact] = useState(() => window.matchMedia("(max-width: 639px)").matches);
 
   useEffect(() => {
@@ -18,12 +20,21 @@ const ArchivePage = () => {
     return () => mq.removeEventListener("change", onChange);
   }, []);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setFailed(false);
+    setYears(null);
     getArchive().then((d) => {
       setYears(d);
       if (d.length > 0) setSel(d[0].year);
-    }).catch(() => setYears([]));
+    }).catch(() => {
+      // Previously this set an empty list, so a failed request looked exactly
+      // like a shelf with nothing on it.
+      setFailed(true);
+      setYears([]);
+    });
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   if (years === null) {
     return (
@@ -46,7 +57,9 @@ const ArchivePage = () => {
         <p className="font-hand text-[15px] sm:text-[17px] text-neutral-400 mt-1">pull a spine to see what that year held</p>
       </div>
 
-      {years.length === 0 ? (
+      {failed ? (
+        <LoadError what="The archive" onRetry={load} />
+      ) : years.length === 0 ? (
         <div className="text-center py-16">
           <Library size={26} className="mx-auto text-neutral-300 mb-3" />
           <p className="font-hand text-[20px] text-neutral-400">The shelf is still empty.</p>

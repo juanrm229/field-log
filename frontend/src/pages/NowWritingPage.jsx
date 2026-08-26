@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import LoadError from "../components/LoadError";
 import { getNowWriting } from "../api";
 import { PenLine } from "lucide-react";
 import SubscribeCard from "../components/SubscribeCard";
@@ -21,14 +22,31 @@ const Ring = ({ percent }) => {
 
 const NowWritingPage = () => {
   const [data, setData] = useState(null);
+  const [failed, setFailed] = useState(false);
   const [animate, setAnimate] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setFailed(false);
+    setData(null);
     getNowWriting().then((d) => {
       setData(d);
       setTimeout(() => setAnimate(true), 150);
-    }).catch(() => setData({ active: false }));
+    }).catch(() => {
+      // "The desk is quiet" is a real state the owner can choose; a failed
+      // request should not impersonate it.
+      setFailed(true);
+    });
   }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (failed) {
+    return (
+      <main className="min-h-screen flex items-center justify-center">
+        <LoadError what="The desk" onRetry={load} />
+      </main>
+    );
+  }
 
   if (!data) {
     return (
