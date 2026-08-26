@@ -6,7 +6,10 @@ import Header from "./components/Header";
 import HomePage from "./pages/HomePage";
 import NotebookView from "./pages/NotebookView";
 import Studio from "./pages/Studio";
+import WallPage from "./pages/WallPage";
+import NowWritingPage from "./pages/NowWritingPage";
 import NotFound from "./pages/NotFound";
+import InkCursor from "./components/InkCursor";
 import { NotebooksProvider } from "./context/NotebooksContext";
 import { Toaster } from "./components/ui/sonner";
 
@@ -44,10 +47,13 @@ function App() {
       <BrowserRouter>
         <NotebooksProvider>
           <BlueprintBackground />
+          <InkCursor />
           <Header theme={theme} setTheme={setTheme} />
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/notebook/:slug" element={<NotebookView />} />
+            <Route path="/wall" element={<WallPage />} />
+            <Route path="/now-writing" element={<NowWritingPage />} />
             <Route path="/studio" element={<Studio />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -177,7 +177,7 @@ frontend:
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 2
+  test_sequence: 3
   run_ui: false
 
 test_plan:
@@ -212,3 +212,62 @@ backend:
       - working: true
         agent: "testing"
         comment: "✓ ALL AUTH TESTS PASSED (23/23). Studio password protection fully working. POST /api/studio/auth correctly returns 200 with {ok: true} for correct password 'koda3am' and 401 for wrong password. Public reads (GET /api/notebooks, GET /api/notebooks/{slug}/full) work WITHOUT any auth header. All mutations (POST/PUT/DELETE for notebooks and entries) correctly return 401 WITHOUT X-Studio-Key header, 401 with WRONG key, and work correctly WITH correct key 'koda3am'. Cascade delete works with auth. All 3 seeded notebooks (about, writings, kind-words) remain intact. Test data cleaned up successfully."
+
+  - agent: "main"
+    message: "Added: (1) Entry.draft bool field on create/update; (2) GET /api/notebooks/{slug}/full now hides draft entries unless X-Studio-Key header is correct (koda3am); (3) GET /api/search?q= searches non-draft entries across title/body/category/meta/chapters, returns id/title/category/type/snippet/notebook_slug/notebook_label, min 2 chars, limit 20. Please test these; do not modify seeded notebooks; clean up test data."
+
+backend:
+  - task: "Search endpoint GET /api/search + draft filtering in /full"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Search across entries excluding drafts; /full hides drafts for public, shows for studio key."
+      - working: true
+        agent: "testing"
+        comment: "✓ Search endpoint working correctly. GET /api/search?q=rain returns results with correct structure (id, title, category, type, snippet, notebook_slug, notebook_label). Min 2 chars validation working (single char returns empty array). Search correctly excludes draft entries. Tested with 'rain' query and found results from seeded data."
+
+  - agent: "main"
+    message: "New backend features to test: (1) Reactions: GET /api/entries/{id}/reactions returns {coffee,feather,heart,sparkles} counts; POST /api/entries/{id}/react {type} increments (400 invalid type, 404 unknown entry). (2) Ideas: POST /api/ideas {name?, idea} public (400 if idea <5 chars); GET /api/ideas requires X-Studio-Key koda3am (401 without); DELETE /api/ideas/{id} requires key. (3) VARIANTS extended: crimson, sand, mint, slate now valid for notebooks. Clean up test data; do not modify seeded notebooks."
+
+backend:
+  - task: "Reactions endpoints + Ideas endpoints + extended variants"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added reactions (public), ideas (submit public, list/delete studio-key), 4 new cover variants."
+      - working: true
+        agent: "testing"
+        comment: "✓ ALL FEATURES WORKING. Reactions: GET /api/entries/{id}/reactions returns correct counts for all types (coffee, feather, heart, sparkles). POST /api/entries/{id}/react increments counts correctly, validates reaction types (400 for invalid), and validates entry existence (404 for unknown). Ideas: POST /api/ideas accepts submissions (400 for <5 chars), GET /api/ideas requires X-Studio-Key (401 without), DELETE /api/ideas/{id} requires key and works correctly. Extended variants: All 4 new variants (crimson, sand, mint, slate) working correctly in notebook creation."
+
+  - agent: "main"
+    message: "New backend endpoints to test: (1) Guestbook: POST /api/guestbook {name?,message,color} public, 400 if message<3 chars, colors lemon/peach/mint/sky/lilac (invalid->lemon); GET /api/guestbook returns ONLY approved; GET /api/guestbook/all requires X-Studio-Key koda3am; PUT /api/guestbook/{id}/approve and DELETE /api/guestbook/{id} require key. (2) Now Writing singleton: GET /api/now-writing public (defaults if unset); PUT /api/now-writing requires key, upserts {title,goal_words,current_words,note,active}. There is 1 existing pending guestbook note from 'Rara' - do NOT delete it. After testing PUT /api/now-writing, RESET it back to {active:false, title:'', goal_words:0, current_words:0, note:''}. Clean up other test data. Also re-verify reactions & search still work."
+  - agent: "testing"
+    message: "✅ ALL BACKEND TESTS PASSED (72/72 total tests). Comprehensive testing completed for all new features. Extended backend_test.py with 29 new tests covering: (1) Search endpoint - working correctly with min 2 chars validation and proper result structure. (2) Reactions - GET and POST working, proper validation for types and entry IDs. (3) Ideas - public submission, protected list/delete with studio key, validation working. (4) Extended variants - all 4 new variants (crimson, sand, mint, slate) working. (5) Guestbook - full moderation flow tested: public submission, approved-only public list, protected all-list with key, approve with key, delete with key, all validations working. Existing 'Rara' note verified intact. (6) Now Writing singleton - GET public working, PUT with key working, successfully updated and reset to defaults as requested. All regression tests passed (search, reactions, notebooks). All 3 seeded notebooks remain intact. All test data cleaned up. Backend is production-ready."
+
+backend:
+  - task: "Guestbook endpoints (moderated) + Now Writing singleton"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Guestbook submit public + moderation via studio key; now-writing GET public / PUT keyed."
+      - working: true
+        agent: "testing"
+        comment: "✓ ALL FEATURES WORKING. Guestbook: POST /api/guestbook creates notes with approved=false (400 for <3 chars, invalid colors default to lemon). GET /api/guestbook returns ONLY approved notes (correctly excludes pending). GET /api/guestbook/all requires X-Studio-Key and returns all notes including pending (401 without key). PUT /api/guestbook/{id}/approve requires key and correctly approves notes (verified note appears in public list after approval). DELETE /api/guestbook/{id} requires key and works correctly (404 for unknown IDs). Existing 'Rara' note remains intact and untouched. Now Writing: GET /api/now-writing returns singleton with all fields (title, goal_words, current_words, note, active). PUT /api/now-writing requires X-Studio-Key (401 without), updates all fields correctly, and changes are reflected in GET. Successfully tested update and reset to defaults. All test data cleaned up."

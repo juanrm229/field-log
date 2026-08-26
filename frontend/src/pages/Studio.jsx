@@ -2,9 +2,12 @@ import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import NotebookCover from "../components/NotebookCover";
 import {
-  getNotebookFull, createNotebook, updateNotebook, deleteNotebook,
+  getNotebookFullStudio, createNotebook, updateNotebook, deleteNotebook,
   createEntry, updateEntry, deleteEntry,
   studioAuth, setStudioKey, hasStudioKey, clearStudioKey,
+  getIdeas, deleteIdea,
+  getAllNotes, approveNote, deleteNote,
+  getNowWriting, updateNowWriting,
 } from "../api";
 import { useNotebooks } from "../context/NotebooksContext";
 import { Input } from "../components/ui/input";
@@ -12,7 +15,8 @@ import { Textarea } from "../components/ui/textarea";
 import { Button } from "../components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
-import { Plus, Trash2, Pencil, BookMarked, GripVertical, KeyRound, LogOut } from "lucide-react";
+import { Switch } from "../components/ui/switch";
+import { Plus, Trash2, Pencil, BookMarked, GripVertical, KeyRound, LogOut, Lightbulb, StickyNote, Check, PenLine } from "lucide-react";
 
 const VARIANTS = [
   { value: "orange", color: "#f94b0c" },
@@ -20,9 +24,13 @@ const VARIANTS = [
   { value: "blue", color: "#3b66a8" },
   { value: "forest", color: "#2f5d43" },
   { value: "night", color: "#1c2233" },
+  { value: "crimson", color: "#a4243b" },
+  { value: "sand", color: "#dcc29a" },
+  { value: "mint", color: "#b9d6c6" },
+  { value: "slate", color: "#465260" },
 ];
 
-const EMPTY_ENTRY = { type: "piece", category: "", title: "", date: "", meta: "", body: "", chapters: [] };
+const EMPTY_ENTRY = { type: "piece", category: "", title: "", date: "", meta: "", body: "", chapters: [], draft: false };
 
 // ---- password gate (owner only) ----
 const StudioGate = ({ onUnlock }) => {
@@ -79,6 +87,57 @@ const Studio = () => {
   const [full, setFull] = useState(null);
   const [coverForm, setCoverForm] = useState(null);
   const [entryDialog, setEntryDialog] = useState(null); // {mode:'new'|'edit', data}
+  const [ideas, setIdeas] = useState([]);
+  const [wallNotes, setWallNotes] = useState([]);
+  const [now, setNow] = useState(null);
+
+  useEffect(() => {
+    if (unlocked) {
+      getIdeas().then(setIdeas).catch(() => setIdeas([]));
+      getAllNotes().then(setWallNotes).catch(() => setWallNotes([]));
+      getNowWriting().then(setNow).catch(() => setNow(null));
+    }
+  }, [unlocked]);
+
+  const handleApproveNote = async (id) => {
+    try {
+      await approveNote(id);
+      setWallNotes((prev) => prev.map((n) => (n.id === id ? { ...n, approved: true } : n)));
+      toast.success("Note approved");
+    } catch { toast.error("Failed to approve"); }
+  };
+
+  const handleDeleteNote = async (id) => {
+    try {
+      await deleteNote(id);
+      setWallNotes((prev) => prev.filter((n) => n.id !== id));
+      toast.success("Note removed");
+    } catch { toast.error("Failed to remove"); }
+  };
+
+  const handleSaveNow = async () => {
+    try {
+      const saved = await updateNowWriting({
+        title: now.title || "",
+        goal_words: parseInt(now.goal_words, 10) || 0,
+        current_words: parseInt(now.current_words, 10) || 0,
+        note: now.note || "",
+        active: !!now.active,
+      });
+      setNow(saved);
+      toast.success("Now Writing updated");
+    } catch { toast.error("Failed to save"); }
+  };
+
+  const handleDeleteIdea = async (id) => {
+    try {
+      await deleteIdea(id);
+      setIdeas((prev) => prev.filter((i) => i.id !== id));
+      toast.success("Idea removed");
+    } catch {
+      toast.error("Failed to remove idea");
+    }
+  };
 
   const selected = notebooks.find((n) => n.slug === selectedSlug) || notebooks[0];
 
@@ -91,12 +150,12 @@ const Studio = () => {
       sub2: selected.subtitle[1] || "",
       variant: selected.variant,
     });
-    getNotebookFull(selected.slug).then(setFull).catch(() => setFull(null));
+    getNotebookFullStudio(selected.slug).then(setFull).catch(() => setFull(null));
   }, [selected]);
 
   const loadEntries = async () => {
     if (selected) {
-      const data = await getNotebookFull(selected.slug);
+      const data = await getNotebookFullStudio(selected.slug);
       setFull(data);
     }
   };
@@ -148,7 +207,7 @@ const Studio = () => {
     const d = entryDialog.data;
     const payload = {
       type: d.type, category: d.category, title: d.title, date: d.date,
-      meta: d.meta, body: d.body, chapters: d.chapters,
+      meta: d.meta, body: d.body, chapters: d.chapters, draft: !!d.draft,
     };
     try {
       if (entryDialog.mode === "new") {
@@ -255,7 +314,7 @@ const Studio = () => {
             <Input data-testid="cover-title-input" value={coverForm.cover_title} onChange={(e) => setCoverForm({ ...coverForm, cover_title: e.target.value })} placeholder="Cover title" className="h-9 text-[13px] rounded-xl" />
             <Input value={coverForm.sub1} onChange={(e) => setCoverForm({ ...coverForm, sub1: e.target.value })} placeholder="Subtitle line 1" className="h-9 text-[13px] rounded-xl" />
             <Input value={coverForm.sub2} onChange={(e) => setCoverForm({ ...coverForm, sub2: e.target.value })} placeholder="Subtitle line 2" className="h-9 text-[13px] rounded-xl" />
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               {VARIANTS.map((v) => (
                 <button
                   key={v.value}
@@ -277,6 +336,7 @@ const Studio = () => {
         </div>
 
         {/* right : entries */}
+        <div className="space-y-6">
         <div className="rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm p-4">
           <div className="flex items-center justify-between mb-3">
             <p className="font-mono-ui text-[9px] tracking-[0.2em] uppercase text-neutral-400">Contents of “{selected.label}”</p>
@@ -298,10 +358,13 @@ const Studio = () => {
                     {e.type === "piece" ? e.category || "piece" : e.type}
                   </span>
                   <span className="text-[13px] text-neutral-800 dark:text-neutral-200 truncate flex-1">{e.title}</span>
+                  {e.draft && (
+                    <span data-testid={`draft-badge-${e.id}`} className="font-mono-ui text-[8px] tracking-[0.14em] uppercase px-1.5 py-0.5 rounded-sm bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400 shrink-0">draft</span>
+                  )}
                   {e.chapters && e.chapters.length > 0 && (
                     <span className="font-mono-ui text-[9px] text-neutral-400 shrink-0">{e.chapters.length} ch</span>
                   )}
-                  <button data-testid={`edit-entry-${e.id}`} onClick={() => setEntryDialog({ mode: "edit", data: { ...e, chapters: e.chapters || [] } })} className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
+                  <button data-testid={`edit-entry-${e.id}`} onClick={() => setEntryDialog({ mode: "edit", data: { ...e, chapters: e.chapters || [], draft: !!e.draft } })} className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
                     <Pencil size={13} />
                   </button>
                   <button data-testid={`delete-entry-${e.id}`} onClick={() => handleDeleteEntry(e)} className="p-1.5 rounded-lg text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors">
@@ -311,6 +374,93 @@ const Studio = () => {
               ))}
             </div>
           )}
+        </div>
+
+        {/* story ideas from readers */}
+        <div className="rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm p-4" data-testid="ideas-panel">
+          <div className="flex items-center gap-2 mb-3">
+            <Lightbulb size={13} className="text-[#f94b0c]" />
+            <p className="font-mono-ui text-[9px] tracking-[0.2em] uppercase text-neutral-400">Story ideas from readers</p>
+            <span className="font-mono-ui text-[9px] text-neutral-400 ml-auto">{ideas.length}</span>
+          </div>
+          {ideas.length === 0 ? (
+            <p className="py-6 text-center text-[13px] text-neutral-400">No ideas dropped in the box yet.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {ideas.map((i) => (
+                <div key={i.id} data-testid={`idea-row-${i.id}`} className="flex items-start gap-3 px-3 py-2.5 rounded-xl border border-neutral-100 dark:border-neutral-800">
+                  <Lightbulb size={13} className="text-neutral-300 mt-0.5 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] text-neutral-800 dark:text-neutral-200 leading-snug">{i.idea}</p>
+                    <p className="font-mono-ui text-[8.5px] tracking-[0.14em] uppercase text-neutral-400 mt-1">
+                      {i.name || "anonymous"} · {new Date(i.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <button data-testid={`delete-idea-${i.id}`} onClick={() => handleDeleteIdea(i.id)} className="p-1.5 rounded-lg text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors shrink-0">
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        {/* wall moderation */}
+        <div className="rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm p-4" data-testid="wall-moderation-panel">
+          <div className="flex items-center gap-2 mb-3">
+            <StickyNote size={13} className="text-[#f94b0c]" />
+            <p className="font-mono-ui text-[9px] tracking-[0.2em] uppercase text-neutral-400">Wall notes (moderation)</p>
+            <span className="font-mono-ui text-[9px] text-neutral-400 ml-auto">{wallNotes.filter((n) => !n.approved).length} pending</span>
+          </div>
+          {wallNotes.length === 0 ? (
+            <p className="py-6 text-center text-[13px] text-neutral-400">No notes on the wall yet.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {wallNotes.map((n) => (
+                <div key={n.id} data-testid={`mod-note-${n.id}`} className={`flex items-start gap-3 px-3 py-2.5 rounded-xl border ${n.approved ? "border-neutral-100 dark:border-neutral-800" : "border-amber-200 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/30"}`}>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] text-neutral-800 dark:text-neutral-200 leading-snug">{n.message}</p>
+                    <p className="font-mono-ui text-[8.5px] tracking-[0.14em] uppercase text-neutral-400 mt-1">
+                      {n.name || "anonymous"} · {n.approved ? "live" : "pending"}
+                    </p>
+                  </div>
+                  {!n.approved && (
+                    <button data-testid={`approve-note-${n.id}`} onClick={() => handleApproveNote(n.id)} className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950 transition-colors shrink-0" aria-label="Approve">
+                      <Check size={14} />
+                    </button>
+                  )}
+                  <button data-testid={`del-note-${n.id}`} onClick={() => handleDeleteNote(n.id)} className="p-1.5 rounded-lg text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors shrink-0" aria-label="Delete">
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* now writing editor */}
+        {now && (
+          <div className="rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm p-4" data-testid="now-writing-panel">
+            <div className="flex items-center gap-2 mb-3">
+              <PenLine size={13} className="text-[#f94b0c]" />
+              <p className="font-mono-ui text-[9px] tracking-[0.2em] uppercase text-neutral-400">Now Writing</p>
+              <div className="ml-auto flex items-center gap-2">
+                <span className="text-[11px] text-neutral-400">Show publicly</span>
+                <Switch data-testid="now-active-switch" checked={!!now.active} onCheckedChange={(v) => setNow({ ...now, active: v })} />
+              </div>
+            </div>
+            <div className="space-y-3">
+              <Input data-testid="now-title-input" value={now.title || ""} onChange={(e) => setNow({ ...now, title: e.target.value })} placeholder="Manuscript title" className="h-9 rounded-xl text-[13px]" />
+              <div className="grid grid-cols-2 gap-3">
+                <Input data-testid="now-current-input" type="number" value={now.current_words ?? 0} onChange={(e) => setNow({ ...now, current_words: e.target.value })} placeholder="Current words" className="h-9 rounded-xl text-[13px]" />
+                <Input data-testid="now-goal-input" type="number" value={now.goal_words ?? 0} onChange={(e) => setNow({ ...now, goal_words: e.target.value })} placeholder="Goal words" className="h-9 rounded-xl text-[13px]" />
+              </div>
+              <Textarea data-testid="now-note-input" value={now.note || ""} onChange={(e) => setNow({ ...now, note: e.target.value })} placeholder="A handwritten note about the process…" className="rounded-xl text-[13px] min-h-[70px]" />
+              <div className="flex justify-end">
+                <Button data-testid="now-save-btn" onClick={handleSaveNow} className="rounded-full h-8 text-[12px]">Save progress</Button>
+              </div>
+            </div>
+          </div>
+        )}
         </div>
       </div>
 
@@ -344,6 +494,14 @@ const Studio = () => {
                   <Input value={entryDialog.data.meta} onChange={(e) => setEntryField("meta", e.target.value)} placeholder={entryDialog.data.type === "kind" ? "Role" : "Meta / subheading"} className="h-9 rounded-xl text-[13px]" />
                 </div>
                 <Textarea data-testid="entry-body-input" value={entryDialog.data.body} onChange={(e) => setEntryField("body", e.target.value)} placeholder={entryDialog.data.type === "kind" ? "Quote" : "Body / synopsis"} className="rounded-xl text-[13px] min-h-[110px]" />
+
+                <div className="flex items-center justify-between rounded-xl border border-neutral-200 dark:border-neutral-800 px-3 py-2.5">
+                  <div>
+                    <p className="text-[12.5px] font-medium text-neutral-800 dark:text-neutral-200">Draft</p>
+                    <p className="text-[11px] text-neutral-400">Hidden from visitors until you publish it</p>
+                  </div>
+                  <Switch data-testid="entry-draft-switch" checked={!!entryDialog.data.draft} onCheckedChange={(v) => setEntryField("draft", v)} />
+                </div>
 
                 {entryDialog.data.type === "piece" && (
                   <div className="space-y-2">

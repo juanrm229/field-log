@@ -1,12 +1,13 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { ChevronDown, Monitor, Sun, Moon } from "lucide-react";
+import { ChevronDown, Monitor, Sun, Moon, Search } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+import SearchOverlay from "./SearchOverlay";
 import { useNotebooks } from "../context/NotebooksContext";
 import { OWNER } from "../mock";
 
@@ -14,10 +15,24 @@ const Header = ({ theme, setTheme }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [logoHover, setLogoHover] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const { notebooks } = useNotebooks();
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   let current = "Home";
   if (location.pathname === "/studio") current = "Studio";
+  else if (location.pathname === "/wall") current = "The Wall";
+  else if (location.pathname === "/now-writing") current = "Now Writing";
   else if (location.pathname.startsWith("/notebook/")) {
     const slug = location.pathname.split("/notebook/")[1];
     const nb = notebooks.find((n) => n.slug === slug);
@@ -77,29 +92,50 @@ const Header = ({ theme, setTheme }) => {
                 {nb.label}
               </DropdownMenuItem>
             ))}
+            <DropdownMenuItem data-testid="nav-item-wall" className="rounded-lg text-[13px] cursor-pointer" onClick={() => navigate("/wall")}>
+              The Wall
+            </DropdownMenuItem>
+            <DropdownMenuItem data-testid="nav-item-now-writing" className="rounded-lg text-[13px] cursor-pointer" onClick={() => navigate("/now-writing")}>
+              Now Writing
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button data-testid="theme-toggle" className="pill h-9 px-3.5 flex items-center gap-1.5 text-neutral-700 dark:text-neutral-200">
-            <ThemeIcon size={15} />
-            <ChevronDown size={13} className="text-neutral-500" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="rounded-xl min-w-[130px]">
-          <DropdownMenuItem className="rounded-lg text-[13px] cursor-pointer gap-2" onClick={() => setTheme("light")}>
-            <Sun size={14} /> Light
-          </DropdownMenuItem>
-          <DropdownMenuItem className="rounded-lg text-[13px] cursor-pointer gap-2" onClick={() => setTheme("dark")}>
-            <Moon size={14} /> Dark
-          </DropdownMenuItem>
-          <DropdownMenuItem className="rounded-lg text-[13px] cursor-pointer gap-2" onClick={() => setTheme("system")}>
-            <Monitor size={14} /> System
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <div className="flex items-center gap-2">
+        {/* search pill */}
+        <button
+          data-testid="search-toggle"
+          onClick={() => setSearchOpen(true)}
+          className="pill h-9 px-3.5 flex items-center gap-1.5 text-neutral-700 dark:text-neutral-200"
+          aria-label="Search writings"
+        >
+          <Search size={14} />
+          <kbd className="hidden sm:inline font-mono-ui text-[8.5px] text-neutral-400">⌘K</kbd>
+        </button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button data-testid="theme-toggle" className="pill h-9 px-3.5 flex items-center gap-1.5 text-neutral-700 dark:text-neutral-200">
+              <ThemeIcon size={15} />
+              <ChevronDown size={13} className="text-neutral-500" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="rounded-xl min-w-[130px]">
+            <DropdownMenuItem className="rounded-lg text-[13px] cursor-pointer gap-2" onClick={() => setTheme("light")}>
+              <Sun size={14} /> Light
+            </DropdownMenuItem>
+            <DropdownMenuItem className="rounded-lg text-[13px] cursor-pointer gap-2" onClick={() => setTheme("dark")}>
+              <Moon size={14} /> Dark
+            </DropdownMenuItem>
+            <DropdownMenuItem className="rounded-lg text-[13px] cursor-pointer gap-2" onClick={() => setTheme("system")}>
+              <Monitor size={14} /> System
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
     </header>
   );
 };

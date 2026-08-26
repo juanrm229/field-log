@@ -1,5 +1,83 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { X, List, Minus, Plus, Moon, Sun, ChevronLeft, ChevronRight } from "lucide-react";
+import { X, List, Minus, Plus, Moon, Sun, ChevronLeft, ChevronRight, CloudRain, CloudOff, Share2 } from "lucide-react";
+import { readingStats } from "../lib/reading";
+import ReactionBar from "./ReactionBar";
+import QuoteCard from "./QuoteCard";
+import { saveReaderPos, getReaderPos } from "../lib/bookmarks";
+
+// Synthesized rain ambience (Web Audio API - generated noise, no audio files)
+const useRainSound = () => {
+  const ctxRef = useRef(null);
+  const [playing, setPlaying] = useState(false);
+
+  const stop = useCallback(() => {
+    if (ctxRef.current) {
+      try { ctxRef.current.close(); } catch (e) { /* noop */ }
+      ctxRef.current = null;
+    }
+    setPlaying(false);
+  }, []);
+
+  const start = useCallback(() => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      ctxRef.current = ctx;
+
+      // base rain: looped filtered noise
+      const seconds = 3;
+      const buffer = ctx.createBuffer(1, ctx.sampleRate * seconds, ctx.sampleRate);
+      const channel = buffer.getChannelData(0);
+      let last = 0;
+      for (let i = 0; i < channel.length; i++) {
+        const white = Math.random() * 2 - 1;
+        last = (last + 0.02 * white) / 1.02; // brownish noise = softer rain
+        channel[i] = last * 3.5;
+      }
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+
+      const lowpass = ctx.createBiquadFilter();
+      lowpass.type = "lowpass";
+      lowpass.frequency.value = 900;
+
+      const highpass = ctx.createBiquadFilter();
+      highpass.type = "highpass";
+      highpass.frequency.value = 180;
+
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+      gain.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 1.2); // fade in
+
+      // slow swell so the rain "breathes"
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.09;
+      const lfoGain = ctx.createGain();
+      lfoGain.gain.value = 0.015;
+      lfo.connect(lfoGain);
+      lfoGain.connect(gain.gain);
+      lfo.start();
+
+      source.connect(lowpass);
+      lowpass.connect(highpass);
+      highpass.connect(gain);
+      gain.connect(ctx.destination);
+      source.start();
+      setPlaying(true);
+    } catch (e) {
+      console.error("rain sound failed", e);
+    }
+  }, []);
+
+  const toggle = useCallback(() => {
+    if (playing) stop();
+    else start();
+  }, [playing, start, stop]);
+
+  useEffect(() => stop, [stop]); // cleanup on unmount
+
+  return { playing, toggle };
+};
 
 /*
   Immersive fullscreen reader.
@@ -16,14 +94,34 @@ const Reader = ({ entry, notebookLabel, onClose }) => {
   const [showToc, setShowToc] = useState(false);
   const [progress, setProgress] = useState(0);
   const scrollRef = useRef(null);
+  const rain = useRainSound();
+  const stats = readingStats(entry);
+  const [selection, setSelection] = useState(null); // {text, x, y}
+  const [quoteCard, setQuoteCard] = useState(null);
+  const savedPos = hasChapters ? getReaderPos(entry.id) : null;
+
+  const onTextMouseUp = () => {
+    const sel = window.getSelection();
+    const text = sel ? sel.toString().trim() : "";
+    if (text.length >= 12 && text.length <= 400) {
+      try {
+        const rect = sel.getRangeAt(0).getBoundingClientRect();
+        setSelection({ text, x: rect.left + rect.width / 2, y: rect.top });
+      } catch { setSelection(null); }
+    } else {
+      setSelection(null);
+    }
+  };
 
   const isPoem = (entry.category || "").toLowerCase().includes("poet");
 
   const goChapter = useCallback(
     (i) => {
       const max = hasChapters ? entry.chapters.length - 1 : -1;
-      setChapter(Math.max(-1, Math.min(max, i)));
+      const next = Math.max(-1, Math.min(max, i));
+      setChapter(next);
       setShowToc(false);
+      if (hasChapters && next >= 0) saveReaderPos(entry.id, next);
       if (scrollRef.current) scrollRef.current.scrollTo({ top: 0 });
     },
     [hasChapters, entry]
@@ -81,6 +179,9 @@ const Reader = ({ entry, notebookLabel, onClose }) => {
               <List size={14} />
             </button>
           )}
+          <button data-testid="reader-rain-toggle" onClick={rain.toggle} className={`reader-ctl ${ink ? "reader-ctl-dark" : ""} ${rain.playing ? "ring-1 ring-[#f94b0c]" : ""}`} aria-label="Toggle rain ambience">
+            {rain.playing ? <CloudRain size={14} className="text-[#f94b0c]" /> : <CloudOff size={14} />}
+          </button>
           <button data-testid="reader-font-minus" onClick={() => setFontSize((s) => Math.max(14, s - 2))} className={`reader-ctl ${ink ? "reader-ctl-dark" : ""}`} aria-label="Smaller text">
             <Minus size={14} />
           </button>
@@ -126,14 +227,25 @@ const Reader = ({ entry, notebookLabel, onClose }) => {
               <h1 className={`font-cover text-[clamp(28px,5vw,46px)] leading-tight mb-4 ${ink ? "text-neutral-100" : "text-neutral-900"}`}>{entry.title}</h1>
               {entry.meta && <p className={`font-hand text-[22px] mb-2 ${ink ? "text-neutral-400" : "text-neutral-500"}`}>{entry.meta}</p>}
               <p className={`font-mono-ui text-[10px] tracking-[0.18em] uppercase ${ink ? "text-neutral-600" : "text-neutral-400"}`}>{entry.date}</p>
+              <p data-testid="reader-stats" className={`font-mono-ui text-[10px] tracking-[0.18em] uppercase mt-2 ${ink ? "text-neutral-600" : "text-neutral-400"}`}>{stats.label}</p>
               {hasChapters ? (
-                <button data-testid="reader-begin" onClick={() => goChapter(0)} className="pill-dark h-10 px-6 mt-10 gap-2 text-[11px] font-mono-ui tracking-[0.14em] uppercase">
-                  Begin reading <ChevronRight size={13} />
-                </button>
+                <div className="flex flex-col items-center gap-3 mt-10">
+                  <button data-testid="reader-begin" onClick={() => goChapter(0)} className="pill-dark h-10 px-6 gap-2 text-[11px] font-mono-ui tracking-[0.14em] uppercase">
+                    Begin reading <ChevronRight size={13} />
+                  </button>
+                  {savedPos !== null && savedPos >= 0 && (
+                    <button data-testid="reader-continue" onClick={() => goChapter(savedPos)} className={`reader-ctl gap-2 px-4 w-auto ${ink ? "reader-ctl-dark" : ""}`}>
+                      <span className="font-mono-ui text-[10px] uppercase tracking-wider">Continue · {entry.chapters[savedPos] && entry.chapters[savedPos].title ? entry.chapters[savedPos].title : `Chapter ${savedPos + 1}`}</span>
+                    </button>
+                  )}
+                </div>
               ) : (
-                <div className={`mt-12 text-left w-full font-serif-read whitespace-pre-line ${isPoem ? "text-center" : ""} ${ink ? "text-neutral-200" : "text-neutral-800"}`}
-                  style={{ fontSize: `${fontSize}px`, lineHeight: 1.9 }}>
-                  {entry.body}
+                <div>
+                  <div onMouseUp={onTextMouseUp} className={`mt-12 text-left w-full font-serif-read whitespace-pre-line ${isPoem ? "text-center" : ""} ${ink ? "text-neutral-200" : "text-neutral-800"}`}
+                    style={{ fontSize: `${fontSize}px`, lineHeight: 1.9 }}>
+                    {entry.body}
+                  </div>
+                  <ReactionBar entryId={entry.id} ink={ink} />
                 </div>
               )}
             </div>
@@ -143,7 +255,7 @@ const Reader = ({ entry, notebookLabel, onClose }) => {
               <h2 className={`font-cover text-[clamp(20px,3.4vw,30px)] leading-tight mb-8 ${ink ? "text-neutral-100" : "text-neutral-900"}`}>
                 {currentChapter.title || `Chapter ${chapter + 1}`}
               </h2>
-              <div className={`font-serif-read whitespace-pre-line drop-cap ${ink ? "text-neutral-200" : "text-neutral-800"}`}
+              <div onMouseUp={onTextMouseUp} className={`font-serif-read whitespace-pre-line drop-cap ${ink ? "text-neutral-200" : "text-neutral-800"}`}
                 style={{ fontSize: `${fontSize}px`, lineHeight: 1.95 }}>
                 {bodyText}
               </div>
@@ -160,10 +272,27 @@ const Reader = ({ entry, notebookLabel, onClose }) => {
                   <button onClick={onClose} className="pill-dark h-8 px-4 text-[10px] font-mono-ui uppercase tracking-wider">The end · Close</button>
                 )}
               </div>
+              {chapter === entry.chapters.length - 1 && <ReactionBar entryId={entry.id} ink={ink} />}
             </div>
           )}
         </div>
       </div>
+
+      {/* floating share-quote button near text selection */}
+      {selection && !quoteCard && (
+        <button
+          data-testid="share-quote-btn"
+          onClick={() => { setQuoteCard(selection.text); setSelection(null); }}
+          className="fixed z-[110] pill-dark h-9 px-4 gap-1.5 text-[10px] font-mono-ui uppercase tracking-[0.12em] search-pop"
+          style={{ left: Math.max(12, Math.min(window.innerWidth - 160, selection.x - 70)), top: Math.max(60, selection.y - 46) }}
+        >
+          <Share2 size={12} /> Quote card
+        </button>
+      )}
+
+      {quoteCard && (
+        <QuoteCard quote={quoteCard} title={entry.title} onClose={() => setQuoteCard(null)} />
+      )}
     </div>
   );
 };

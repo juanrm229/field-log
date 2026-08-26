@@ -21,6 +21,10 @@ export const studioAuth = async (password) => (await axios.post(`${API}/studio/a
 // ---- public reads ----
 export const getNotebooks = async () => (await axios.get(`${API}/notebooks`)).data;
 export const getNotebookFull = async (slug) => (await axios.get(`${API}/notebooks/${slug}/full`)).data;
+export const searchEntries = async (q) => (await axios.get(`${API}/search`, { params: { q } })).data;
+
+// studio read (includes drafts when key is set)
+export const getNotebookFullStudio = async (slug) => (await axios.get(`${API}/notebooks/${slug}/full`, auth())).data;
 
 // ---- protected writes ----
 export const createNotebook = async (data) => (await axios.post(`${API}/notebooks`, data, auth())).data;
@@ -29,3 +33,23 @@ export const deleteNotebook = async (id) => (await axios.delete(`${API}/notebook
 export const createEntry = async (data) => (await axios.post(`${API}/entries`, data, auth())).data;
 export const updateEntry = async (id, data) => (await axios.put(`${API}/entries/${id}`, data, auth())).data;
 export const deleteEntry = async (id) => (await axios.delete(`${API}/entries/${id}`, auth())).data;
+
+// ---- reader reactions (public) ----
+export const getReactions = async (entryId) => (await axios.get(`${API}/entries/${entryId}/reactions`)).data;
+export const sendReaction = async (entryId, type) => (await axios.post(`${API}/entries/${entryId}/react`, { type })).data;
+
+// ---- story ideas ----
+export const submitIdea = async (data) => (await axios.post(`${API}/ideas`, data)).data;
+export const getIdeas = async () => (await axios.get(`${API}/ideas`, auth())).data;
+export const deleteIdea = async (id) => (await axios.delete(`${API}/ideas/${id}`, auth())).data;
+
+// ---- guestbook wall ----
+export const submitNote = async (data) => (await axios.post(`${API}/guestbook`, data)).data;
+export const getNotes = async () => (await axios.get(`${API}/guestbook`)).data;
+export const getAllNotes = async () => (await axios.get(`${API}/guestbook/all`, auth())).data;
+export const approveNote = async (id) => (await axios.put(`${API}/guestbook/${id}/approve`, {}, auth())).data;
+export const deleteNote = async (id) => (await axios.delete(`${API}/guestbook/${id}`, auth())).data;
+
+// ---- now writing ----
+export const getNowWriting = async () => (await axios.get(`${API}/now-writing`)).data;
+export const updateNowWriting = async (data) => (await axios.put(`${API}/now-writing`, data, auth())).data;

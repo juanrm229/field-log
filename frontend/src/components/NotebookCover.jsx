@@ -82,6 +82,31 @@ const HalftoneMountains = () => (
   </svg>
 );
 
+const DuneLines = () => (
+  <svg className="absolute inset-0 w-full h-full" viewBox="0 0 300 460" preserveAspectRatio="xMidYMid slice">
+    <g fill="none" stroke="#8a6a3f" strokeWidth="1.2" strokeOpacity="0.35">
+      <path d="M-10,300 C60,270 120,310 180,285 C240,262 280,290 310,275" />
+      <path d="M-10,330 C55,305 125,342 185,318 C245,296 285,322 310,308" />
+      <path d="M-10,360 C50,338 130,372 190,350 C250,330 288,352 310,340" />
+      <path d="M-10,392 C58,372 128,402 192,382 C252,364 290,384 310,372" />
+      <path d="M-10,424 C62,406 132,432 196,414 C254,398 292,416 310,404" />
+    </g>
+    <circle cx="235" cy="215" r="24" fill="none" stroke="#8a6a3f" strokeWidth="1.2" strokeOpacity="0.4" strokeDasharray="3 4" />
+    <circle cx="235" cy="215" r="14" fill="#8a6a3f" fillOpacity="0.22" />
+  </svg>
+);
+
+const InkWaves = () => (
+  <svg className="absolute inset-0 w-full h-full" viewBox="0 0 300 460" preserveAspectRatio="xMidYMid slice">
+    <g fill="none" stroke="#28504a" strokeWidth="1.2" strokeOpacity="0.3">
+      {[0, 1, 2, 3, 4, 5].map((i) => (
+        <path key={i} d={`M-10,${290 + i * 26} q 20,-12 40,0 t 40,0 t 40,0 t 40,0 t 40,0 t 40,0 t 40,0 t 40,0`} />
+      ))}
+    </g>
+    <path d="M60 210 q 12 -30 40 -34 q -4 26 -26 34 q 22 2 34 -12 q 2 24 -22 32 q -22 6 -26 -20 Z" fill="#28504a" fillOpacity="0.25" />
+  </svg>
+);
+
 const NightStars = () => (
   <svg className="absolute inset-0 w-full h-full" viewBox="0 0 300 460" preserveAspectRatio="xMidYMid slice">
     <g fill="#e7ecf7">
@@ -128,6 +153,30 @@ const VARIANT_STYLES = {
     sub: "text-[#e7ecf7]/80",
     label: "text-[#e7ecf7]/95",
   },
+  crimson: {
+    bg: "bg-[#a4243b]",
+    title: "text-[#f7ecdf]",
+    sub: "text-[#f7ecdf]/85",
+    label: "text-[#f7ecdf]/95",
+  },
+  sand: {
+    bg: "bg-[#dcc29a]",
+    title: "text-[#4a3820]",
+    sub: "text-[#4a3820]/80",
+    label: "text-[#4a3820]/90",
+  },
+  mint: {
+    bg: "bg-[#b9d6c6]",
+    title: "text-[#1f4038]",
+    sub: "text-[#1f4038]/80",
+    label: "text-[#1f4038]/90",
+  },
+  slate: {
+    bg: "bg-[#465260]",
+    title: "text-[#e8ecf2]",
+    sub: "text-[#e8ecf2]/80",
+    label: "text-[#e8ecf2]/95",
+  },
 };
 
 const NotebookCover = ({ variant = "orange", label, subtitle = [], coverTitle = "FIELD LOG", large = false, back = false }) => {
@@ -168,6 +217,10 @@ const NotebookCover = ({ variant = "orange", label, subtitle = [], coverTitle = 
       {variant === "blue" && <HalftoneMountains />}
       {variant === "forest" && <TopoLines />}
       {variant === "night" && <NightStars />}
+      {variant === "crimson" && <TopoLines />}
+      {variant === "sand" && <DuneLines />}
+      {variant === "mint" && <InkWaves />}
+      {variant === "slate" && <NightStars />}
 
       {/* binding edge */}
       <div className="absolute left-0 top-0 bottom-0 w-[6%] bg-gradient-to-r from-black/25 via-black/10 to-transparent" />
