@@ -226,7 +226,7 @@ const HomePage = () => {
 
   if (isMobile) {
     return (
-      <main className="min-h-screen flex flex-col items-center justify-center overflow-x-hidden pt-24 pb-16">
+      <main className="min-h-screen flex flex-col items-center justify-center overflow-x-hidden pt-20 pb-10">
         <div className="text-center text-neutral-400 dark:text-neutral-500 mb-5" aria-hidden="true">
           <p className="font-mono-ui text-[10px] tracking-[0.34em] uppercase">the field logs of</p>
           <p className="font-logo text-[30px] text-neutral-700 dark:text-neutral-300 leading-tight mt-0.5">Juan</p>

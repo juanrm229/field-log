@@ -552,12 +552,6 @@
    "full screen" page is always taller than the visible area and the address
    bar forces a scroll. dvh tracks the real visible height. Kept behind
    @supports so older browsers keep the vh behaviour rather than nothing. */
-@supports (min-height: 100dvh) {
-  .min-h-screen {
-    min-height: 100dvh;
-  }
-}
-
 /* ---- route transition ----
    Opacity only, deliberately: a transform on this wrapper would become the
    containing block for the position:fixed overlays inside the pages (the
@@ -596,5 +590,22 @@
   .year-panel-scroll {
     -webkit-mask-image: none;
     mask-image: none;
+  }
+}
+
+/* ---- the "written in Indonesia" footnote ----
+   It used to be position:fixed, which floated it over whatever the page was
+   showing — it sat on top of the archive panel. Now it is the last row of the
+   document, and .min-h-screen subtracts its height so a full-screen page plus
+   the footnote is still exactly one viewport. */
+:root {
+  --footnote-h: 2rem;
+}
+.footnote {
+  height: var(--footnote-h);
+}
+@supports (min-height: 100dvh) {
+  .min-h-screen {
+    min-height: calc(100dvh - var(--footnote-h));
   }
 }

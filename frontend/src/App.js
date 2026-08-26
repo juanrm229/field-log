@@ -28,13 +28,15 @@ const RouteFade = ({ children }) => {
   return <div key={pathname} className="route-fade">{children}</div>;
 };
 
+// In the page flow rather than floating over it. Its height is reserved by the
+// --footnote-h custom property, which .min-h-screen subtracts, so a "full
+// screen" page plus this footnote still adds up to exactly one viewport.
 const Footer = () => (
-  <footer className="fixed bottom-4 right-5 z-40 flex items-center gap-2 select-none">
-    <span className="font-mono-ui text-[9px] tracking-[0.22em] font-semibold text-neutral-500 dark:text-neutral-400">WRITTEN IN INDONESIA</span>
-    <svg width="16" height="11" viewBox="0 0 16 11" className="rounded-[2px] shadow-sm">
+  <footer className="footnote flex items-center justify-center gap-1.5 select-none">
+    <span className="font-mono-ui text-[8px] tracking-[0.2em] text-neutral-400/70 dark:text-neutral-500/70">WRITTEN IN INDONESIA</span>
+    <svg width="11" height="8" viewBox="0 0 16 11" className="rounded-[1px] opacity-60" aria-hidden="true">
       <rect width="16" height="5.5" fill="#e63946" />
       <rect y="5.5" width="16" height="5.5" fill="#ffffff" />
-      <rect width="16" height="11" fill="none" stroke="rgba(0,0,0,0.15)" strokeWidth="0.5" />
     </svg>
   </footer>
 );

@@ -39,7 +39,7 @@ const ArchivePage = () => {
     /* On a phone the whole archive has to sit in one screen, so the page itself
        is a fixed-height column and the year's contents scroll inside their own
        panel. From sm up the page scrolls normally again. */
-    <main className="h-[100dvh] sm:h-auto sm:min-h-screen flex flex-col overflow-hidden sm:overflow-visible pt-20 sm:pt-24 pb-14 sm:pb-20 px-4 sm:px-8 max-w-3xl mx-auto">
+    <main className="h-[calc(100dvh_-_var(--footnote-h))] sm:h-auto sm:min-h-screen flex flex-col overflow-hidden sm:overflow-visible pt-20 sm:pt-24 pb-14 sm:pb-20 px-4 sm:px-8 max-w-3xl mx-auto">
       <div className="text-center mb-4 sm:mb-10 shrink-0">
         <p className="font-mono-ui text-[10px] tracking-[0.3em] uppercase text-[#f94b0c] mb-1">The Archive</p>
         <h1 className="font-cover text-xl text-neutral-900 dark:text-neutral-100">A shelf of years</h1>
