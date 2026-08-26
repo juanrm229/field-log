@@ -20,9 +20,19 @@ from seed_data import DEFAULT_NOTEBOOKS
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+def required_env(name: str) -> str:
+    """Fail at boot with a readable message rather than a KeyError in a log tail."""
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(
+            f"{name} is not set. Locally: copy backend/.env.example to backend/.env. "
+            f"On a host: set it in the service's environment variables."
+        )
+    return value
+
+
+client = AsyncIOMotorClient(required_env("MONGO_URL"))
+db = client[required_env("DB_NAME")]
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -31,7 +41,9 @@ VARIANTS = {"orange", "paper", "blue", "forest", "night", "crimson", "sand", "mi
 
 REACTION_TYPES = {"heart", "sparkles", "feather", "coffee"}
 
-STUDIO_PASSWORD = os.environ.get("STUDIO_PASSWORD", "koda3am")
+# Deliberately no default: a password written into the source would unlock
+# /studio on every deployment whose operator forgot to set this.
+STUDIO_PASSWORD = required_env("STUDIO_PASSWORD")
 
 resend.api_key = os.environ.get("RESEND_API_KEY", "")
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
@@ -670,10 +682,18 @@ async def delete_music(x_studio_key: Optional[str] = Header(None)):
 
 app.include_router(api_router)
 
+# Comma-separated origins allowed to call this API. Defaults to the local dev
+# server; in production set it to the deployed frontend's origin.
+CORS_ORIGINS = [o.strip() for o in os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
+_allow_any_origin = CORS_ORIGINS == ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
+    # A wildcard origin cannot be combined with credentials — browsers reject the
+    # pair outright. This API authenticates with the X-Studio-Key header, never
+    # with cookies, so it does not need them.
+    allow_credentials=not _allow_any_origin,
     allow_methods=["*"],
     allow_headers=["*"],
 )
