@@ -1,9 +1,32 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { X, List, Minus, Plus, Moon, Sun, ChevronLeft, ChevronRight, CloudRain, CloudOff, Share2 } from "lucide-react";
+import { X, List, Minus, Plus, Moon, Sun, ChevronLeft, ChevronRight, CloudRain, CloudOff, Share2, SlidersHorizontal } from "lucide-react";
 import { readingStats } from "../lib/reading";
 import ReactionBar from "./ReactionBar";
 import QuoteCard from "./QuoteCard";
 import { saveReaderPos, getReaderPos } from "../lib/bookmarks";
+import Portal from "./Portal";
+
+// Reader preferences outlive a single sitting — a reader who sized the text up
+// once should not have to do it again on their next visit.
+const PREF_KEY = "reader_prefs";
+const loadPrefs = () => {
+  try { return JSON.parse(localStorage.getItem(PREF_KEY)) || {}; } catch { return {}; }
+};
+const savePrefs = (patch) => {
+  try { localStorage.setItem(PREF_KEY, JSON.stringify({ ...loadPrefs(), ...patch })); } catch { /* private mode */ }
+};
+const siteIsDark = () => document.documentElement.classList.contains("dark");
+
+// Where you stopped inside a chapter, not just which chapter you were on.
+// Coming back to the top of a chapter you were halfway through is its own
+// small punishment for closing the tab.
+const scrollKey = (id) => `reader_scroll_${id}`;
+const saveScroll = (id, chapter, top) => {
+  try { localStorage.setItem(scrollKey(id), JSON.stringify({ chapter, top })); } catch { /* noop */ }
+};
+const loadScroll = (id) => {
+  try { return JSON.parse(localStorage.getItem(scrollKey(id))); } catch { return null; }
+};
 
 // Synthesized rain ambience (Web Audio API - generated noise, no audio files)
 const useRainSound = () => {
@@ -89,9 +112,17 @@ const useRainSound = () => {
 const Reader = ({ entry, notebookLabel, onClose }) => {
   const hasChapters = entry.chapters && entry.chapters.length > 0;
   const [chapter, setChapter] = useState(-1); // -1 = title page
-  const [fontSize, setFontSize] = useState(18);
-  const [ink, setInk] = useState(false); // dark ink mode
+  const [fontSize, setFontSize] = useState(() => loadPrefs().fontSize || 18);
+  // Falls in line with the site's own light/dark setting unless the reader has
+  // chosen otherwise here; opening a reader that flashes white on a dark site
+  // is the kind of jolt that ends the immersion before it starts.
+  const [ink, setInk] = useState(() => {
+    const saved = loadPrefs().ink;
+    return typeof saved === "boolean" ? saved : siteIsDark();
+  });
+  const [chromeHidden, setChromeHidden] = useState(false);
   const [showToc, setShowToc] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [progress, setProgress] = useState(0);
   const scrollRef = useRef(null);
   const rain = useRainSound();
@@ -143,21 +174,73 @@ const Reader = ({ entry, notebookLabel, onClose }) => {
     };
   }, [onClose, goChapter, chapter, hasChapters]);
 
+  // Restore the saved offset once the chapter's text is on the page.
+  const restored = useRef(false);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || restored.current) return;
+    const saved = loadScroll(entry.id);
+    if (saved && saved.chapter === chapter && saved.top > 0) {
+      restored.current = true;
+      requestAnimationFrame(() => el.scrollTo({ top: saved.top }));
+    }
+  }, [chapter, entry.id]);
+
+  useEffect(() => { savePrefs({ fontSize }); }, [fontSize]);
+  useEffect(() => { savePrefs({ ink }); }, [ink]);
+
+  // The controls step out of the way once you are actually reading, and come
+  // back the moment you look for them — scrolling up, moving the pointer, or
+  // tapping the page.
+  const lastScroll = useRef(0);
   const onScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
     const max = el.scrollHeight - el.clientHeight;
     setProgress(max > 0 ? el.scrollTop / max : 1);
+
+    const y = el.scrollTop;
+    if (y > 120 && y > lastScroll.current + 8) setChromeHidden(true);
+    else if (y < lastScroll.current - 8 || y <= 120) setChromeHidden(false);
+    lastScroll.current = y;
+    saveScroll(entry.id, chapter, y);
+  };
+
+  const revealChrome = () => setChromeHidden(false);
+
+  // Sideways swipe turns the chapter; the arrow keys already do this with a
+  // keyboard, and a phone has no arrow keys.
+  const touchStart = useRef(null);
+  const onTouchStart = (e) => {
+    const t = e.touches[0];
+    touchStart.current = { x: t.clientX, y: t.clientY };
+  };
+  const onTouchEnd = (e) => {
+    const start = touchStart.current;
+    touchStart.current = null;
+    if (!start || !hasChapters || chapter < 0) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    // Only a decisively horizontal gesture, so it never fights the scroll.
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 2) return;
+    goChapter(dx < 0 ? chapter + 1 : chapter - 1);
   };
 
   const currentChapter = hasChapters && chapter >= 0 ? entry.chapters[chapter] : null;
   const bodyText = currentChapter ? currentChapter.body : entry.body;
 
+  // "How much is left" is the question a progress bar only half answers.
+  const wordsLeft = Math.round(((bodyText || "").trim().split(/\s+/).filter(Boolean).length) * (1 - progress));
+  const minutesLeft = Math.max(1, Math.round(wordsLeft / 200));
+
   return (
+    <Portal>
     <div
       data-testid="reader-overlay"
       className={`fixed inset-0 z-[100] reader-enter ${ink ? "bg-[#141210]" : "bg-[#f6f1e7]"} transition-colors duration-500`}
       onClick={(e) => e.stopPropagation()}
+      onMouseMove={revealChrome}
     >
       {/* paper grain */}
       <div className="absolute inset-0 pointer-events-none reader-grain" />
@@ -167,32 +250,87 @@ const Reader = ({ entry, notebookLabel, onClose }) => {
       </div>
 
       {/* top bar */}
-      <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 sm:px-6 py-4">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className={`font-mono-ui text-[9px] tracking-[0.2em] uppercase truncate ${ink ? "text-neutral-500" : "text-neutral-400"}`}>
+      <div
+        className={`absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 sm:px-6 py-4 reader-chrome ${chromeHidden ? "reader-chrome-hidden" : ""}`}
+        onMouseEnter={revealChrome}
+      >
+        <div className="flex flex-col min-w-0 mr-2">
+          {/* On a phone the six controls leave this a few characters wide, where
+              "WRITIN…" tells the reader nothing. The time left does. */}
+          <span className={`hidden sm:block font-mono-ui text-[9px] tracking-[0.2em] uppercase truncate ${ink ? "text-neutral-500" : "text-neutral-400"}`}>
             {notebookLabel} · {entry.category || "piece"}
           </span>
+          {(chapter >= 0 || !hasChapters) && progress < 0.995 && (
+            <span className={`font-mono-ui text-[9px] tracking-[0.2em] uppercase whitespace-nowrap sm:mt-0.5 ${ink ? "text-neutral-600" : "text-neutral-400/80"}`}>
+              {minutesLeft} min left
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {hasChapters && (
-            <button data-testid="reader-toc-btn" onClick={() => setShowToc((v) => !v)} className={`reader-ctl ${ink ? "reader-ctl-dark" : ""}`} aria-label="Chapters">
+            <button data-testid="reader-toc-btn" onClick={() => { setShowToc((v) => !v); setShowSettings(false); }} className={`reader-ctl ${ink ? "reader-ctl-dark" : ""}`} aria-label="Chapters">
               <List size={14} />
             </button>
           )}
-          <button data-testid="reader-rain-toggle" onClick={rain.toggle} className={`reader-ctl ${ink ? "reader-ctl-dark" : ""} ${rain.playing ? "ring-1 ring-[#f94b0c]" : ""}`} aria-label="Toggle rain ambience">
-            {rain.playing ? <CloudRain size={14} className="text-[#f94b0c]" /> : <CloudOff size={14} />}
-          </button>
-          <button data-testid="reader-font-minus" onClick={() => setFontSize((s) => Math.max(14, s - 2))} className={`reader-ctl ${ink ? "reader-ctl-dark" : ""}`} aria-label="Smaller text">
-            <Minus size={14} />
-          </button>
-          <button data-testid="reader-font-plus" onClick={() => setFontSize((s) => Math.min(26, s + 2))} className={`reader-ctl ${ink ? "reader-ctl-dark" : ""}`} aria-label="Larger text">
-            <Plus size={14} />
-          </button>
-          <button data-testid="reader-ink-toggle" onClick={() => setInk((v) => !v)} className={`reader-ctl ${ink ? "reader-ctl-dark" : ""}`} aria-label="Toggle ink mode">
-            {ink ? <Sun size={14} /> : <Moon size={14} />}
-          </button>
+
+          {/* Six controls fit a desktop bar and swamp a phone one — at 375px they
+              take 312 of it, leaving the reading-time readout clipped. On small
+              screens the four adjustments fold into one button. */}
+          <div className="hidden sm:flex items-center gap-2">
+            <button data-testid="reader-rain-toggle" onClick={rain.toggle} className={`reader-ctl ${ink ? "reader-ctl-dark" : ""} ${rain.playing ? "ring-1 ring-[#f94b0c]" : ""}`} aria-label="Toggle rain ambience">
+              {rain.playing ? <CloudRain size={14} className="text-[#f94b0c]" /> : <CloudOff size={14} />}
+            </button>
+            <button data-testid="reader-font-minus" onClick={() => setFontSize((v) => Math.max(14, v - 2))} className={`reader-ctl ${ink ? "reader-ctl-dark" : ""}`} aria-label="Smaller text">
+              <Minus size={14} />
+            </button>
+            <button data-testid="reader-font-plus" onClick={() => setFontSize((v) => Math.min(26, v + 2))} className={`reader-ctl ${ink ? "reader-ctl-dark" : ""}`} aria-label="Larger text">
+              <Plus size={14} />
+            </button>
+            <button data-testid="reader-ink-toggle" onClick={() => setInk((v) => !v)} className={`reader-ctl ${ink ? "reader-ctl-dark" : ""}`} aria-label="Toggle ink mode">
+              {ink ? <Sun size={14} /> : <Moon size={14} />}
+            </button>
+          </div>
+
+          {/* Wrapped rather than carrying sm:hidden itself: .reader-ctl sets
+              display:inline-flex from App.css, which loads after Tailwind and
+              would win over the utility's display:none. */}
+          <span className="sm:hidden">
+            <button
+              data-testid="reader-settings"
+              onClick={() => { setShowSettings((v) => !v); setShowToc(false); }}
+              className={`reader-ctl ${ink ? "reader-ctl-dark" : ""} ${showSettings ? "ring-1 ring-[#f94b0c]" : ""}`}
+              aria-label="Reading settings"
+              aria-expanded={showSettings}
+            >
+              <SlidersHorizontal size={14} />
+            </button>
+          </span>
+
           <button data-testid="reader-close" onClick={onClose} className={`reader-ctl ${ink ? "reader-ctl-dark" : ""}`} aria-label="Close reader">
             <X size={15} />
+          </button>
+        </div>
+      </div>
+
+      {/* reading settings — the phone's version of the inline controls */}
+      <div
+        className={`sm:hidden absolute top-16 right-4 z-30 rounded-2xl shadow-xl border p-3 transition-all duration-300 origin-top-right ${
+          showSettings ? "opacity-100 scale-100" : "opacity-0 scale-95 pointer-events-none"
+        } ${ink ? "bg-[#1e1b18] border-white/10" : "bg-white border-neutral-200"}`}
+      >
+        <div className="flex items-center gap-2">
+          <button onClick={() => setFontSize((v) => Math.max(14, v - 2))} className={`reader-ctl ${ink ? "reader-ctl-dark" : ""}`} aria-label="Smaller text">
+            <Minus size={14} />
+          </button>
+          <span className={`font-mono-ui text-[10px] tracking-[0.16em] uppercase w-10 text-center ${ink ? "text-neutral-400" : "text-neutral-500"}`}>{fontSize}px</span>
+          <button onClick={() => setFontSize((v) => Math.min(26, v + 2))} className={`reader-ctl ${ink ? "reader-ctl-dark" : ""}`} aria-label="Larger text">
+            <Plus size={14} />
+          </button>
+          <button onClick={() => setInk((v) => !v)} className={`reader-ctl ${ink ? "reader-ctl-dark" : ""}`} aria-label="Toggle ink mode">
+            {ink ? <Sun size={14} /> : <Moon size={14} />}
+          </button>
+          <button onClick={rain.toggle} className={`reader-ctl ${ink ? "reader-ctl-dark" : ""} ${rain.playing ? "ring-1 ring-[#f94b0c]" : ""}`} aria-label="Toggle rain ambience">
+            {rain.playing ? <CloudRain size={14} className="text-[#f94b0c]" /> : <CloudOff size={14} />}
           </button>
         </div>
       </div>
@@ -219,7 +357,14 @@ const Reader = ({ entry, notebookLabel, onClose }) => {
       )}
 
       {/* content */}
-      <div ref={scrollRef} onScroll={onScroll} className="absolute inset-0 overflow-y-auto z-10">
+      <div
+        ref={scrollRef}
+        onScroll={onScroll}
+        onPointerDown={(e) => { if (e.pointerType !== "mouse") setChromeHidden((v) => !v); }}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+        className="absolute inset-0 overflow-y-auto z-10"
+      >
         <div key={chapter} className="reader-page-enter mx-auto max-w-[620px] px-6 pt-28 pb-32">
           {chapter === -1 ? (
             <div className={`text-center ${isPoem ? "" : "min-h-[50vh]"} flex flex-col items-center justify-center`}>
@@ -294,6 +439,7 @@ const Reader = ({ entry, notebookLabel, onClose }) => {
         <QuoteCard quote={quoteCard} title={entry.title} onClose={() => setQuoteCard(null)} />
       )}
     </div>
+    </Portal>
   );
 };
 

@@ -609,3 +609,34 @@
     min-height: calc(100dvh - var(--footnote-h));
   }
 }
+
+/* ---- reader chrome ----
+   The controls retreat while you are reading and return when you reach for
+   them. Kept out of the way rather than removed: pointer-events stay live on
+   hover so the bar can be summoned back at the top edge. */
+.reader-chrome {
+  transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reader-chrome-hidden {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+.reader-chrome-hidden:hover {
+  opacity: 1;
+  transform: none;
+}
+
+/* Touch targets. 32px is comfortable with a mouse and awkward with a thumb;
+   the visual size is unchanged, the tappable area is not. */
+@media (hover: none) {
+  .reader-ctl {
+    height: 40px;
+    width: 40px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reader-chrome {
+    transition: none;
+  }
+}
