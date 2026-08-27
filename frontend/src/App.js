@@ -14,6 +14,7 @@ const Studio = lazy(() => import("./pages/Studio"));
 const WallPage = lazy(() => import("./pages/WallPage"));
 const NowWritingPage = lazy(() => import("./pages/NowWritingPage"));
 const ArchivePage = lazy(() => import("./pages/ArchivePage"));
+const SimpangPage = lazy(() => import("./pages/SimpangPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 import InkCursor from "./components/InkCursor";
 import MusicPlayer from "./components/MusicPlayer";
@@ -82,6 +83,7 @@ function App() {
               <Route path="/wall" element={<WallPage />} />
               <Route path="/now-writing" element={<NowWritingPage />} />
               <Route path="/archive" element={<ArchivePage />} />
+              <Route path="/simpang" element={<SimpangPage />} />
               <Route path="/studio" element={<Studio />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

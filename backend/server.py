@@ -16,6 +16,7 @@ import uuid
 from datetime import datetime, timezone
 
 from seed_data import DEFAULT_NOTEBOOKS
+from simpang_sample import SAMPLE_CHARACTERS, SAMPLE_MOMENTS
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -243,6 +244,158 @@ class EntryUpdate(BaseModel):
     chapters: Optional[List[Chapter]] = None
     draft: Optional[bool] = None
     order: Optional[int] = None
+
+
+# ---------- Simpang: fictional journals that cross ----------
+# Story time is an integer beat `t`, which is what sorts and positions an entry,
+# alongside a free-text `date_label` for the reader. Fiction says "the third day"
+# or "no date at all"; forcing that into a date type would erase it.
+class Character(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    slug: str = ""
+    name: str = ""
+    role: str = ""
+    variant: str = "orange"          # cover variant, reused as the ink colour
+    entry_id: Optional[str] = None   # the piece this character comes from
+    t_start: int = 1
+    t_end: int = 12
+    gaps: List[List[int]] = []       # [[from, to]] — stretches not written yet
+    order: int = 0
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class CharacterCreate(BaseModel):
+    slug: Optional[str] = None
+    name: str = ""
+    role: str = ""
+    variant: str = "orange"
+    entry_id: Optional[str] = None
+    t_start: int = 1
+    t_end: int = 12
+    gaps: List[List[int]] = []
+    order: Optional[int] = None
+
+
+class CharacterUpdate(BaseModel):
+    slug: Optional[str] = None
+    name: Optional[str] = None
+    role: Optional[str] = None
+    variant: Optional[str] = None
+    entry_id: Optional[str] = None
+    t_start: Optional[int] = None
+    t_end: Optional[int] = None
+    gaps: Optional[List[List[int]]] = None
+    order: Optional[int] = None
+
+
+class Paragraph(BaseModel):
+    """One paragraph of an entry. `protected` is the writer's own mark for the
+    lines they consider private; it is carried through rather than dropped, and
+    the page gives it a different treatment instead of hiding it."""
+    text: str = ""
+    protected: bool = False
+
+
+class Claim(BaseModel):
+    """A paragraph that asserts a named proposition, or turns against one.
+
+    The corpus marks these inline — @claims(p_dua_cangkir), @irony(p_karman_mati)
+    — so a crossing is simply a proposition more than one person touches, and the
+    writer has already decided where those are. `kind` keeps the two apart: a
+    claim states the proposition, irony undercuts it.
+    """
+    key: str = ""
+    text: str = ""
+    kind: str = "claims"   # claims | irony
+    protected: bool = False
+
+
+class JournalEntry(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    character_id: str
+    moment_id: Optional[str] = None      # kept for entries written in Studio
+    moment_ids: List[str] = []           # every crossing this entry touches
+    t: int = 1
+    date_label: str = ""
+    place: str = ""
+    title: str = ""
+    body: str = ""
+    paragraphs: List[Paragraph] = []
+    claims: List[Claim] = []
+    source_id: str = ""    # the id in the corpus frontmatter, e.g. k2026
+    draft: bool = False
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class JournalEntryCreate(BaseModel):
+    character_id: str
+    moment_id: Optional[str] = None
+    moment_ids: List[str] = []
+    t: int = 1
+    date_label: str = ""
+    place: str = ""
+    title: str = ""
+    body: str = ""
+    paragraphs: List[Paragraph] = []
+    claims: List[Claim] = []
+    source_id: str = ""
+    draft: bool = False
+
+
+class JournalEntryUpdate(BaseModel):
+    character_id: Optional[str] = None
+    moment_id: Optional[str] = None
+    moment_ids: Optional[List[str]] = None
+    t: Optional[int] = None
+    date_label: Optional[str] = None
+    place: Optional[str] = None
+    title: Optional[str] = None
+    body: Optional[str] = None
+    paragraphs: Optional[List[Paragraph]] = None
+    claims: Optional[List[Claim]] = None
+    draft: Optional[bool] = None
+
+
+class Moment(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    label: str = ""
+    place: str = ""
+    t: int = 1
+    date_label: str = ""
+    character_ids: List[str] = []
+    prop: str = ""        # the proposition this crossing is built from, e.g. p_dua_cangkir
+    featured: bool = False  # offer this one first — a reader needs one way in
+    note: str = ""        # editor's note shown under a contradiction here
+    above: bool = True    # draw the map label above or below the node
+    hidden: bool = False  # spoiler shield: keep this junction off the public map
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class MomentCreate(BaseModel):
+    label: str = ""
+    place: str = ""
+    t: int = 1
+    date_label: str = ""
+    character_ids: List[str] = []
+    prop: str = ""
+    featured: bool = False
+    note: str = ""
+    above: bool = True
+    hidden: bool = False
+
+
+class MomentUpdate(BaseModel):
+    label: Optional[str] = None
+    place: Optional[str] = None
+    t: Optional[int] = None
+    date_label: Optional[str] = None
+    character_ids: Optional[List[str]] = None
+    prop: Optional[str] = None
+    featured: Optional[bool] = None
+    note: Optional[str] = None
+    above: Optional[bool] = None
+    hidden: Optional[bool] = None
+
 
 
 # ---------- Helpers ----------
@@ -773,6 +926,227 @@ async def delete_music(x_studio_key: Optional[str] = Header(None)):
         raise HTTPException(status_code=404, detail="no music to delete")
     await drop_music_file(doc)
     return {"deleted": True}
+
+
+# ---------- Simpang (the map of journals that cross) ----------
+def find_clashes(moment_id: str, entries: List[dict], prop: str = "") -> List[dict]:
+    """Where a proposition is pulled in two directions.
+
+    Two things count. Someone turns against a proposition another person states
+    — the corpus marks that with @irony — or two people state the same
+    proposition and say different things. Either way the rule lives here, so the
+    front end never has to know how a crossing is decided.
+    """
+    by_key = {}
+    for e in entries:
+        belongs = e.get("moment_ids") or ([e["moment_id"]] if e.get("moment_id") else [])
+        if moment_id not in belongs:
+            continue
+        for c in e.get("claims", []):
+            key = (c.get("key") or "").strip().lower()
+            # An entry is a whole day and carries every proposition it touches.
+            # A crossing may only speak for its own, or it would report someone
+            # else's argument as its own.
+            if not key or (prop and key != prop.strip().lower()):
+                continue
+            by_key.setdefault(key, {"claims": [], "irony": []})
+            item = {
+                "character_id": e["character_id"],
+                "text": c.get("text", ""),
+                "protected": bool(c.get("protected")),
+            }
+            by_key[key]["irony" if c.get("kind") == "irony" else "claims"].append(item)
+
+    out = []
+    for key, sides in by_key.items():
+        claims, irony = sides["claims"], sides["irony"]
+        disagree = len({i["text"].strip().lower() for i in claims}) > 1
+        if irony or (len(claims) > 1 and disagree):
+            out.append({"key": key, "items": claims + irony, "claims": claims, "irony": irony})
+    return out
+
+
+@api_router.get("/simpang")
+async def get_simpang(x_studio_key: Optional[str] = Header(None)):
+    """The whole map in one request — the documents are few and the page needs
+    all of them at once before it can draw a single line."""
+    owner = x_studio_key == STUDIO_PASSWORD
+    characters = [clean(c) for c in await db.characters.find().sort("order", 1).to_list(200)]
+
+    moments = [clean(m) for m in await db.moments.find(
+        {} if owner else {"hidden": {"$ne": True}}).sort("t", 1).to_list(500)]
+    visible = {m["id"] for m in moments}
+
+    entries = [clean(e) for e in await db.journal_entries.find(
+        {} if owner else {"draft": {"$ne": True}}).sort("t", 1).to_list(2000)]
+    # Entries attached to a hidden junction are hidden with it; otherwise the
+    # junction's contents still leak out through the entry list.
+    if not owner:
+        kept = []
+        for e in entries:
+            belongs = e.get("moment_ids") or ([e["moment_id"]] if e.get("moment_id") else [])
+            if not belongs:
+                kept.append(e)
+                continue
+            # An entry stays only if it still has somewhere visible to belong,
+            # and it is trimmed to those crossings so a hidden one leaves no trace.
+            shown = [m for m in belongs if m in visible]
+            if shown:
+                e["moment_ids"] = shown
+                if e.get("moment_id") not in shown:
+                    e["moment_id"] = shown[0]
+                kept.append(e)
+        entries = kept
+
+    for m in moments:
+        m["clashes"] = find_clashes(m["id"], entries, m.get("prop", ""))
+
+    return {"characters": characters, "moments": moments, "entries": entries}
+
+
+@api_router.post("/characters")
+async def create_character(payload: CharacterCreate, x_studio_key: Optional[str] = Header(None)):
+    require_studio_key(x_studio_key)
+    data = payload.model_dump()
+    data["slug"] = data.get("slug") or slugify(payload.name)
+    if data.get("order") is None:
+        data["order"] = await next_order("characters")
+    c = Character(**data)
+    await db.characters.insert_one(c.model_dump())
+    return clean(c.model_dump())
+
+
+@api_router.put("/characters/{character_id}")
+async def update_character(character_id: str, payload: CharacterUpdate, x_studio_key: Optional[str] = Header(None)):
+    require_studio_key(x_studio_key)
+    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="nothing to update")
+    result = await db.characters.update_one({"id": character_id}, {"$set": updates})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="character not found")
+    return clean(await db.characters.find_one({"id": character_id}))
+
+
+@api_router.delete("/characters/{character_id}")
+async def delete_character(character_id: str, x_studio_key: Optional[str] = Header(None)):
+    require_studio_key(x_studio_key)
+    result = await db.characters.delete_one({"id": character_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="character not found")
+    # Their journals go too, and their name is pulled out of every junction, so
+    # the map does not draw a line for someone who no longer exists.
+    await db.journal_entries.delete_many({"character_id": character_id})
+    await db.moments.update_many({}, {"$pull": {"character_ids": character_id}})
+    return {"deleted": True}
+
+
+@api_router.post("/moments")
+async def create_moment(payload: MomentCreate, x_studio_key: Optional[str] = Header(None)):
+    require_studio_key(x_studio_key)
+    m = Moment(**payload.model_dump())
+    await db.moments.insert_one(m.model_dump())
+    return clean(m.model_dump())
+
+
+@api_router.put("/moments/{moment_id}")
+async def update_moment(moment_id: str, payload: MomentUpdate, x_studio_key: Optional[str] = Header(None)):
+    require_studio_key(x_studio_key)
+    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="nothing to update")
+    result = await db.moments.update_one({"id": moment_id}, {"$set": updates})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="moment not found")
+    return clean(await db.moments.find_one({"id": moment_id}))
+
+
+@api_router.delete("/moments/{moment_id}")
+async def delete_moment(moment_id: str, x_studio_key: Optional[str] = Header(None)):
+    require_studio_key(x_studio_key)
+    result = await db.moments.delete_one({"id": moment_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="moment not found")
+    # The entries survive and are only detached — finished writing should not
+    # disappear because of one click on the junction it happened to sit in.
+    await db.journal_entries.update_many({"moment_id": moment_id}, {"$set": {"moment_id": None}})
+    return {"deleted": True}
+
+
+@api_router.post("/journal-entries")
+async def create_journal_entry(payload: JournalEntryCreate, x_studio_key: Optional[str] = Header(None)):
+    require_studio_key(x_studio_key)
+    if not await db.characters.find_one({"id": payload.character_id}):
+        raise HTTPException(status_code=404, detail="character not found")
+    e = JournalEntry(**payload.model_dump())
+    await db.journal_entries.insert_one(e.model_dump())
+    return clean(e.model_dump())
+
+
+@api_router.put("/journal-entries/{entry_id}")
+async def update_journal_entry(entry_id: str, payload: JournalEntryUpdate, x_studio_key: Optional[str] = Header(None)):
+    require_studio_key(x_studio_key)
+    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="nothing to update")
+    result = await db.journal_entries.update_one({"id": entry_id}, {"$set": updates})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="journal entry not found")
+    return clean(await db.journal_entries.find_one({"id": entry_id}))
+
+
+@api_router.delete("/journal-entries/{entry_id}")
+async def delete_journal_entry(entry_id: str, x_studio_key: Optional[str] = Header(None)):
+    require_studio_key(x_studio_key)
+    result = await db.journal_entries.delete_one({"id": entry_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="journal entry not found")
+    return {"deleted": True}
+
+
+@api_router.post("/simpang/sample")
+async def load_simpang_sample(x_studio_key: Optional[str] = Header(None)):
+    """Sample content, loaded by hand from Studio. Deliberately NOT part of the
+    boot-time seed: this is fiction the owner did not write, and it must never
+    appear in a production database on its own."""
+    require_studio_key(x_studio_key)
+    if await db.characters.count_documents({}) > 0:
+        raise HTTPException(status_code=409, detail="simpang already has characters")
+
+    ids = {}
+    for i, c in enumerate(SAMPLE_CHARACTERS):
+        ch = Character(order=i, slug=slugify(c["name"]), **c)
+        ids[c["name"].lower()] = ch.id
+        await db.characters.insert_one(ch.model_dump())
+
+    for m in SAMPLE_MOMENTS:
+        mo = Moment(
+            label=m["label"], place=m["place"], t=m["t"], date_label=m["date_label"],
+            note=m.get("note", ""), above=m.get("above", True),
+            character_ids=[ids[n] for n in m["cast"]],
+        )
+        await db.moments.insert_one(mo.model_dump())
+        for who, e in m["entries"].items():
+            je = JournalEntry(
+                character_id=ids[who], moment_id=mo.id, t=m["t"],
+                date_label=m["date_label"], place=m["place"],
+                title=m["label"], body=e["body"],
+                claims=[Claim(**c) for c in e.get("claims", [])],
+            )
+            await db.journal_entries.insert_one(je.model_dump())
+
+    return {"characters": len(SAMPLE_CHARACTERS), "moments": len(SAMPLE_MOMENTS)}
+
+
+@api_router.delete("/simpang/all")
+async def clear_simpang(x_studio_key: Optional[str] = Header(None)):
+    """Empty Simpang completely. Notebooks and entries are left alone."""
+    require_studio_key(x_studio_key)
+    c = await db.characters.delete_many({})
+    m = await db.moments.delete_many({})
+    e = await db.journal_entries.delete_many({})
+    return {"characters": c.deleted_count, "moments": m.deleted_count, "entries": e.deleted_count}
+
 
 
 app.include_router(api_router)

@@ -123,6 +123,23 @@ const NightStars = () => (
   </svg>
 );
 
+// Warna tinta per varian cover, dipakai halaman Simpang untuk menggambar garis
+// karakter. Cover gelap menyumbang warna latarnya; cover pucat menyumbang warna
+// teksnya — latar pucat tidak terbaca sebagai garis di atas kertas krem.
+// Nilai gelapnya disetel ulang di App.css lewat kelas .ink-<varian>, supaya
+// tinta ikut berganti saat tema berubah tanpa perlu render ulang.
+export const VARIANT_INK = {
+  orange: "#c93a07",
+  paper: "#20303c",
+  blue: "#1d3a63",
+  forest: "#2f5d43",
+  night: "#1c2233",
+  crimson: "#a4243b",
+  sand: "#4a3820",
+  mint: "#1f4038",
+  slate: "#465260",
+};
+
 const VARIANT_STYLES = {
   orange: {
     bg: "bg-[#f94b0c]",

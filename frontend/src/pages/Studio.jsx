@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useSite } from "../context/SiteContext";
 import { toast } from "sonner";
 import NotebookCover from "../components/NotebookCover";
+import SimpangPanel from "../components/SimpangPanel";
 import {
   getNotebookFullStudio, createNotebook, updateNotebook, deleteNotebook,
   createEntry, updateEntry, deleteEntry,
@@ -653,6 +654,8 @@ const Studio = () => {
             </label>
           </div>
         </div>
+
+        <SimpangPanel />
         </div>
       </div>
 

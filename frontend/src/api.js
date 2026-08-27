@@ -64,6 +64,23 @@ export const getSubscribers = async () => (await axios.get(`${API}/subscribers`,
 export const deleteSubscriber = async (id) => (await axios.delete(`${API}/subscribers/${id}`, auth())).data;
 export const sendNotify = async (data) => (await axios.post(`${API}/notify`, data, auth())).data;
 
+// ---- simpang (peta jurnal lintas karakter) ----
+// Satu permintaan mengembalikan seluruh peta: karakter, simpang, dan entri.
+// Dengan studio key, simpul tersembunyi dan draft ikut terbawa.
+export const getSimpang = async () => (await axios.get(`${API}/simpang`)).data;
+export const getSimpangStudio = async () => (await axios.get(`${API}/simpang`, auth())).data;
+export const createCharacter = async (data) => (await axios.post(`${API}/characters`, data, auth())).data;
+export const updateCharacter = async (id, data) => (await axios.put(`${API}/characters/${id}`, data, auth())).data;
+export const deleteCharacter = async (id) => (await axios.delete(`${API}/characters/${id}`, auth())).data;
+export const createMoment = async (data) => (await axios.post(`${API}/moments`, data, auth())).data;
+export const updateMoment = async (id, data) => (await axios.put(`${API}/moments/${id}`, data, auth())).data;
+export const deleteMoment = async (id) => (await axios.delete(`${API}/moments/${id}`, auth())).data;
+export const createJournalEntry = async (data) => (await axios.post(`${API}/journal-entries`, data, auth())).data;
+export const updateJournalEntry = async (id, data) => (await axios.put(`${API}/journal-entries/${id}`, data, auth())).data;
+export const deleteJournalEntry = async (id) => (await axios.delete(`${API}/journal-entries/${id}`, auth())).data;
+export const loadSimpangSample = async () => (await axios.post(`${API}/simpang/sample`, {}, auth())).data;
+export const clearSimpang = async () => (await axios.delete(`${API}/simpang/all`, auth())).data;
+
 // ---- yearly archive ----
 export const getArchive = async () => (await axios.get(`${API}/archive`)).data;
 

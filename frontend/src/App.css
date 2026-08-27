@@ -640,3 +640,227 @@
     transition: none;
   }
 }
+
+/* ---- simpang : the map of journals that cross ----
+   Character ink. The light values come from VARIANT_INK in NotebookCover.jsx;
+   the dark ones are lifted so they still read on cream paper that has gone dark.
+   Consumed as var(--ink-c), so switching theme never re-renders the SVG. */
+.ink-orange  { --ink-c: #c93a07; }
+.ink-paper   { --ink-c: #20303c; }
+.ink-blue    { --ink-c: #1d3a63; }
+.ink-forest  { --ink-c: #2f5d43; }
+.ink-night   { --ink-c: #1c2233; }
+.ink-crimson { --ink-c: #a4243b; }
+.ink-sand    { --ink-c: #4a3820; }
+.ink-mint    { --ink-c: #1f4038; }
+.ink-slate   { --ink-c: #465260; }
+.dark .ink-orange  { --ink-c: #ff6a33; }
+.dark .ink-paper   { --ink-c: #cfd7dd; }
+.dark .ink-blue    { --ink-c: #a8c2e0; }
+.dark .ink-forest  { --ink-c: #6fae87; }
+.dark .ink-night   { --ink-c: #97a2c0; }
+.dark .ink-crimson { --ink-c: #e0697c; }
+.dark .ink-sand    { --ink-c: #dcc29a; }
+.dark .ink-mint    { --ink-c: #8fc7b2; }
+.dark .ink-slate   { --ink-c: #9aa8b8; }
+
+/* the map sheet, pinned to the cork board */
+.map-sheet {
+  position: relative;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.14), 0 14px 30px rgba(0, 0, 0, 0.22);
+  transform: rotate(-0.35deg);
+}
+.dark .map-sheet { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4), 0 14px 30px rgba(0, 0, 0, 0.5); }
+
+/* the overlay page : two accounts landing on one sheet */
+.clash-block {
+  border-left: 3px solid #a4243b;
+  background: rgba(164, 36, 59, 0.08);
+  border-radius: 0 8px 8px 0;
+}
+.dark .clash-block { border-left-color: #e0697c; background: rgba(224, 105, 124, 0.13); }
+.merge-tick { width: 3px; height: 15px; border-radius: 2px; background: var(--ink-c); }
+
+/* A paragraph the writer marked @protected. Shown, not hidden — but set apart,
+   so the mark still means something on the page. */
+.protected-para {
+  position: relative;
+  padding-left: 14px;
+  opacity: 0.72;
+  font-style: italic;
+}
+.protected-para::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.35em;
+  bottom: 0.35em;
+  width: 2px;
+  border-radius: 2px;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(164, 36, 59, 0.75) 0 4px,
+    transparent 4px 8px
+  );
+}
+.dark .protected-para::before {
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(224, 105, 124, 0.75) 0 4px,
+    transparent 4px 8px
+  );
+}
+
+/* ---- the ledger : a name down the side, a year across the top ---- */
+.ledger-empty {
+  border-right: 1px solid rgba(120, 100, 70, 0.07);
+  border-bottom: 1px solid rgba(120, 100, 70, 0.07);
+}
+.dark .ledger-empty {
+  border-right-color: rgba(240, 225, 200, 0.05);
+  border-bottom-color: rgba(240, 225, 200, 0.05);
+}
+.ledger-chit {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid rgba(120, 100, 70, 0.07);
+  border-bottom: 1px solid rgba(120, 100, 70, 0.07);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.dark .ledger-chit {
+  border-right-color: rgba(240, 225, 200, 0.05);
+  border-bottom-color: rgba(240, 225, 200, 0.05);
+}
+.ledger-chit:hover, .ledger-chit:focus-visible { transform: scale(1.35); z-index: 3; }
+.ledger-chit:focus-visible { outline: 2px solid #f94b0c; outline-offset: 1px; }
+.ledger-mark {
+  width: 8px;
+  border-radius: 1.5px;
+  background: var(--ink-c);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.18);
+  transition: box-shadow 0.2s ease;
+}
+.ledger-count {
+  position: absolute;
+  right: 1px;
+  top: 1px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 6.5px;
+  line-height: 1;
+  color: #6e6659;
+}
+.dark .ledger-count { color: #8d8577; }
+/* the square you are reading */
+.ledger-chit.is-open .ledger-mark {
+  box-shadow: 0 0 0 2px #f94b0c, 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+/* ---- threads out of a day ---- */
+.thread-note {
+  margin-top: 6px;
+  font-size: 17px;
+  line-height: 1.4;
+  color: #a4243b;
+}
+.dark .thread-note { color: #e0697c; }
+.thread-link {
+  text-decoration: underline;
+  text-decoration-style: dashed;
+  text-underline-offset: 4px;
+  transition: opacity 0.2s ease;
+}
+.thread-link:hover { opacity: 0.65; }
+.thread-row {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  width: 100%;
+  text-align: left;
+  padding: 4px 0;
+}
+.thread-name { font-size: 11px; letter-spacing: 0.1em; }
+.thread-when {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #6e6659;
+  white-space: nowrap;
+}
+.dark .thread-when { color: #8d8577; }
+.thread-rule {
+  flex: 1;
+  border-bottom: 1px dotted rgba(120, 100, 70, 0.45);
+  transform: translateY(-3px);
+}
+.dark .thread-rule { border-bottom-color: rgba(240, 225, 200, 0.28); }
+.thread-go {
+  font-size: 16px;
+  color: #f94b0c;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  white-space: nowrap;
+}
+.thread-row:hover .thread-go,
+.thread-row:focus-visible .thread-go { opacity: 1; }
+
+/* ---- the strip of days a reader has dug out ---- */
+.trail { border-radius: 6px; box-shadow: var(--pill-shadow, 0 1px 2px rgba(0,0,0,.06)); }
+.trail-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 5px 11px 6px 9px;
+  border-left: 2px solid var(--ink-c);
+  transition: background-color 0.2s ease, transform 0.2s ease;
+  white-space: nowrap;
+}
+.trail-card:hover { background: rgba(120, 100, 70, 0.09); transform: translateY(-1px); }
+.dark .trail-card:hover { background: rgba(240, 225, 200, 0.07); }
+.trail-card.is-here { background: rgba(249, 75, 12, 0.12); }
+.trail-year {
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  color: #6e6659;
+}
+.dark .trail-year { color: #8d8577; }
+.trail-who { font-size: 10.5px; letter-spacing: 0.08em; }
+/* a jump of more than a year shows as a jump */
+.trail-gap {
+  display: flex;
+  align-items: center;
+  padding: 0 9px;
+  font-size: 7.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8b8477;
+  border-bottom: 1px dotted rgba(120, 100, 70, 0.5);
+  align-self: center;
+  margin: 0 2px;
+}
+.dark .trail-gap { color: #7d7568; border-bottom-color: rgba(240, 225, 200, 0.3); }
+
+/* ---- one tick per day in a journal, instead of one dot per sheet ---- */
+.day-tick {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 16px;
+  width: 9px;
+  padding: 0;
+}
+.day-tick span {
+  display: block;
+  width: 2px;
+  height: 7px;
+  border-radius: 1px;
+  background: rgba(120, 100, 70, 0.42);
+  transition: height 0.2s ease, background-color 0.2s ease;
+}
+.dark .day-tick span { background: rgba(240, 225, 200, 0.3); }
+.day-tick:hover span { height: 12px; background: rgba(120, 100, 70, 0.75); }
+.dark .day-tick:hover span { background: rgba(240, 225, 200, 0.6); }
+.day-tick span.is-here { height: 15px; background: #f94b0c; }
+.day-tick:focus-visible { outline: 2px solid #f94b0c; outline-offset: 2px; border-radius: 2px; }
