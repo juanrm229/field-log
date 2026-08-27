@@ -864,3 +864,33 @@
 .dark .day-tick:hover span { background: rgba(240, 225, 200, 0.6); }
 .day-tick span.is-here { height: 15px; background: #f94b0c; }
 .day-tick:focus-visible { outline: 2px solid #f94b0c; outline-offset: 2px; border-radius: 2px; }
+
+/* ---- the way across to The Crossing ------------------------------------- */
+/* The desk version carries its parallax in an inline transform, so hover can
+   not use transform without fighting it. It moves the arrow and lifts the
+   shadow instead — the note itself stays taped where it was put. */
+.crossing-cue {
+  transition: box-shadow .28s ease, background-color .28s ease;
+}
+.crossing-cue:hover,
+.crossing-cue:focus-visible {
+  box-shadow: 0 16px 26px rgba(0, 0, 0, 0.18);
+}
+.dark .crossing-cue:hover,
+.dark .crossing-cue:focus-visible {
+  box-shadow: 0 16px 26px rgba(0, 0, 0, 0.5);
+}
+.crossing-cue:focus-visible {
+  outline: 2px solid rgba(120, 113, 100, 0.55);
+  outline-offset: 3px;
+}
+.cue-arrow {
+  transition: transform .28s cubic-bezier(.2, .8, .3, 1);
+}
+.crossing-cue:hover .cue-arrow,
+.crossing-cue:focus-visible .cue-arrow {
+  transform: translateX(5px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cue-arrow { transition: none; }
+}

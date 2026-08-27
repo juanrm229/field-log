@@ -79,6 +79,36 @@ const DeskScene = ({ mx, my }) => (
   Native scroll-snap does the work — it keeps the momentum and rubber-banding
   the platform already provides, which a JS drag handler would have to imitate.
 */
+/* The way over to the other desk.
+
+   Every notebook on this page is Juan's own hand. The Crossing is not — it is
+   eighteen invented people keeping journals in an invented town, and a visitor
+   who opens it expecting more of the same is owed a warning first. Hence the
+   second line: it says how many hands and how much town before the click. */
+const CrossingCue = ({ onOpen, className = "", style }) => (
+  /* note-drop animates transform, and an animation outranks an inline style —
+     so the note cannot also carry its own placement. The wrapper is where it
+     sits and how it tilts; the button is only what it does. */
+  <div className={className} style={style}>
+    <button
+      type="button"
+      onClick={onOpen}
+      data-testid="home-crossing-cue"
+      aria-label="The Crossing — journals from another world"
+      className="crossing-cue relative block bg-[#fffdf6] dark:bg-neutral-900 dark:border dark:border-neutral-700 shadow-lg px-5 py-2 note-drop focus:outline-none"
+    >
+      <span className="absolute -top-1.5 -left-3 w-8 h-3 bg-[#c3dcef]/70 dark:bg-[#c3dcef]/30 rotate-[-30deg]" aria-hidden="true" />
+      <span className="absolute -top-1.5 -right-3 w-8 h-3 bg-[#f8e8a0]/80 dark:bg-[#f8e8a0]/30 rotate-[30deg]" aria-hidden="true" />
+      <p className="font-hand text-[17px] leading-tight text-neutral-700 dark:text-neutral-200 whitespace-nowrap">
+        journals from another world&nbsp;<span className="cue-arrow inline-block">&rarr;</span>
+      </p>
+      <p className="font-mono-ui text-[8px] tracking-[0.24em] uppercase text-neutral-400 mt-0.5 whitespace-nowrap">
+        18 hands · one town
+      </p>
+    </button>
+  </div>
+);
+
 const MobileShelf = ({ notebooks, onOpen }) => {
   const trackRef = useRef(null);
   const slideRefs = useRef([]);
@@ -241,6 +271,7 @@ const HomePage = () => {
           <p className="font-logo text-[30px] text-neutral-700 dark:text-neutral-300 leading-tight mt-0.5">Juan</p>
         </div>
         <MobileShelf notebooks={notebooks} onOpen={openNotebook} />
+        <CrossingCue onOpen={() => navigate("/crossing")} className="mt-8 rotate-[-1.5deg]" />
       </main>
     );
   }
@@ -289,6 +320,12 @@ const HomePage = () => {
           );
         })}
       </div>
+
+      <CrossingCue
+        onOpen={() => navigate("/crossing")}
+        className="absolute left-1/2 bottom-[6vh] z-30"
+        style={{ transform: `translateX(-50%) rotate(-1.5deg) translate(${mouse.mx * -6}px, ${mouse.my * -4}px)` }}
+      />
     </main>
   );
 };

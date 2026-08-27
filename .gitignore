@@ -87,6 +87,8 @@ credentials.json
 *.key
 .credentials
 
+.env*
+
 # Keep the committed templates (the rules above would otherwise hide them)
 !.env.example
 !**/.env.example

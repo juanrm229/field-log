@@ -7,7 +7,11 @@ import NotebookCover from "../components/NotebookCover";
 import JournalBook from "../components/JournalBook";
 import { playPageFlip, playPaperTick } from "../lib/sounds";
 
-/* Simpang — where the journals cross.
+/* The Crossing — where the journals cross.
+
+   Called Simpang while it was being built; the address and the label are
+   English now. The API path stayed /api/simpang — renaming it would mean a
+   backend deploy and a re-import for something no reader ever sees.
  *
  * An earlier version drew this as lines running left to right, one per person.
  * That was a lie about the material: nobody is continuously present between two
@@ -382,7 +386,7 @@ const SimpangPage = () => {
         <div className="relative bg-[#fffdf6] dark:bg-neutral-900 dark:border dark:border-neutral-700 shadow-lg px-8 py-2.5 rotate-[-1.5deg] note-drop">
           <span className="absolute -top-2 -left-4 w-10 h-4 bg-[#c3dcef]/70 dark:bg-[#c3dcef]/30 rotate-[-30deg]" />
           <span className="absolute -top-2 -right-4 w-10 h-4 bg-[#f8e8a0]/80 dark:bg-[#f8e8a0]/30 rotate-[30deg]" />
-          <p className="font-cover text-[16px] text-[#2a2620] dark:text-neutral-100 tracking-wide text-center">SIMPANG</p>
+          <p className="font-cover text-[16px] text-[#2a2620] dark:text-neutral-100 tracking-wide text-center">THE CROSSING</p>
           <p className="font-mono-ui text-[8px] tracking-[0.24em] uppercase text-neutral-400 text-center">where the journals cross</p>
         </div>
       </div>

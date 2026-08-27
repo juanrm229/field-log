@@ -1,6 +1,6 @@
 import React, { lazy, Suspense, useEffect, useState } from "react";
 import "./App.css";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import BlueprintBackground from "./components/BlueprintBackground";
 import Header from "./components/Header";
 import HomePage from "./pages/HomePage";
@@ -14,7 +14,7 @@ const Studio = lazy(() => import("./pages/Studio"));
 const WallPage = lazy(() => import("./pages/WallPage"));
 const NowWritingPage = lazy(() => import("./pages/NowWritingPage"));
 const ArchivePage = lazy(() => import("./pages/ArchivePage"));
-const SimpangPage = lazy(() => import("./pages/SimpangPage"));
+const CrossingPage = lazy(() => import("./pages/SimpangPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 import InkCursor from "./components/InkCursor";
 import MusicPlayer from "./components/MusicPlayer";
@@ -83,7 +83,10 @@ function App() {
               <Route path="/wall" element={<WallPage />} />
               <Route path="/now-writing" element={<NowWritingPage />} />
               <Route path="/archive" element={<ArchivePage />} />
-              <Route path="/simpang" element={<SimpangPage />} />
+              <Route path="/crossing" element={<CrossingPage />} />
+              {/* It was live at /simpang for a day. Any link handed out in
+                  that window still opens the page. */}
+              <Route path="/simpang" element={<Navigate to="/crossing" replace />} />
               <Route path="/studio" element={<Studio />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
