@@ -79,16 +79,49 @@ const Pin = ({ color = "#d3232f", className = "" }) => (
 /* What the reader has dug out, stacked in story order rather than reading
    order. A time capsule needs a table to lay the papers on; the gaps between
    what you have found are as much of the shape as the papers are. */
-const Trail = ({ dugDays, byId, entries, openEntryId, onOpen, onClear }) => (
+/* A trail written into a link.
+
+   The days are named by their corpus id — g2019, k1989 — not their uuid. Twelve
+   uuids would be four hundred characters of noise; twelve of these fit in a
+   message, and a person can see it is a list of days. The ids are derived from
+   the folder now, so a link keeps working across re-imports. */
+const TRAIL_KEY = "trail";
+const TRAIL_MAX = 60;
+
+const trailToParam = (days) => days.map((e) => e.source_id).filter(Boolean).join(",");
+
+const trailFromParam = (param, entries) => {
+  if (!param) return [];
+  const want = String(param).split(",").map((x) => x.trim()).filter(Boolean).slice(0, TRAIL_MAX);
+  const bySource = new Map(entries.filter((e) => e.source_id).map((e) => [e.source_id, e]));
+  const seen = new Set();
+  const out = [];
+  want.forEach((sid) => {
+    const e = bySource.get(sid);
+    // A day that is no longer there is dropped rather than shown as a hole.
+    if (e && !seen.has(e.id)) { seen.add(e.id); out.push(e); }
+  });
+  return out.sort((a, b) => a.t - b.t);
+};
+
+const Trail = ({ dugDays, byId, entries, openEntryId, onOpen, onClear, shared, onCopy, copied }) => (
   <section className="mt-8" data-testid="simpang-trail">
     <div className="flex items-baseline justify-between gap-3 mb-2">
       <p className="font-mono-ui text-[10px] tracking-[0.3em] uppercase text-[#f94b0c]">
-        What you have dug out
+        {shared ? "Someone else's way in" : "What you have dug out"}
       </p>
-      <button onClick={onClear}
-        className="font-mono-ui text-[8.5px] tracking-[0.16em] uppercase text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300">
-        put it back
-      </button>
+      <div className="flex items-baseline gap-3 shrink-0">
+        {!shared && (
+          <button onClick={onCopy} data-testid="trail-copy"
+            className="font-mono-ui text-[8.5px] tracking-[0.16em] uppercase text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300">
+            {copied ? "link copied" : "copy this trail"}
+          </button>
+        )}
+        <button onClick={onClear} data-testid="trail-clear"
+          className="font-mono-ui text-[8.5px] tracking-[0.16em] uppercase text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300">
+          {shared ? "put it away" : "put it back"}
+        </button>
+      </div>
     </div>
     <div className="trail cream-page px-4 py-3 overflow-x-auto">
       <ol className="flex items-stretch gap-0">
@@ -118,7 +151,9 @@ const Trail = ({ dugDays, byId, entries, openEntryId, onOpen, onClear }) => (
       </ol>
     </div>
     <p className="font-hand text-[16px] text-neutral-400 mt-1.5">
-      {dugDays.length} of {entries.length} days, in the order they happened — not the order you found them
+      {shared
+        ? `${dugDays.length} of ${entries.length} days, the way somebody else found this town — open one and it becomes yours too`
+        : `${dugDays.length} of ${entries.length} days, in the order they happened — not the order you found them`}
     </p>
   </section>
 );
@@ -263,6 +298,40 @@ const SimpangPage = () => {
 
   const clearTrail = useCallback(() => { setDug([]); writeDug([]); }, []);
 
+  /* A trail that arrived in a link. It is shown beside the reader's own and
+     never merged into it: someone else's route is a thing to follow, not a
+     thing to have dug. Opening any day on it does add that day to their own,
+     which is the point — you walk somebody's path and end up with your own. */
+  const [sharedDismissed, setSharedDismissed] = useState(false);
+  const sharedDays = useMemo(
+    () => (sharedDismissed ? [] : trailFromParam(searchParams.get(TRAIL_KEY), entries)),
+    [searchParams, entries, sharedDismissed]);
+
+  /* Every rewrite of the query has to carry the shared trail along. Following
+     somebody's path meant opening its first day, and opening a day replaced the
+     whole query — so the path vanished at the exact moment it was being used. */
+  const keepTrail = useCallback((next) => {
+    const t = searchParams.get(TRAIL_KEY);
+    setSearchParams(t ? { ...next, [TRAIL_KEY]: t } : next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  const [copied, setCopied] = useState(false);
+  const copyTrail = useCallback(async () => {
+    const param = trailToParam(dugDays);
+    if (!param) return;
+    const readable = param.split(",").map(encodeURIComponent).join(",");
+    const url = `${window.location.origin}/crossing?${TRAIL_KEY}=${readable}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2200);
+    } catch {
+      // Clipboard access can be refused outright; putting the link in the
+      // address bar at least leaves the reader something to copy by hand.
+      window.prompt("Copy this link", url);
+    }
+  }, [dugDays]);
+
   // One shelf entry per hand: their ink, how long they wrote, how much.
   const shelf = useMemo(() => characters.map((c) => {
     const mine = entries.filter((e) => e.character_id === c.id).sort((a, b) => a.t - b.t);
@@ -291,8 +360,8 @@ const SimpangPage = () => {
     const e = entries.find((x) => x.id === entryId);
     if (e) setOpenCharId(e.character_id);
     setOpenEntryId(entryId);
-    setSearchParams({ day: entryId }, { replace: true });
-  }, [entries, setSearchParams]);
+    keepTrail({ day: entryId });
+  }, [entries, keepTrail]);
 
   // Anything that used to hand over a person and a year still can; it just
   // resolves to the first day in that square now.
@@ -306,14 +375,14 @@ const SimpangPage = () => {
   const openHand = useCallback((charId) => {
     setOpenCharId(charId);
     setOpenEntryId(null);
-    setSearchParams({}, { replace: true });
-  }, [setSearchParams]);
+    keepTrail({});
+  }, [keepTrail]);
 
   const closeBook = useCallback(() => {
     setOpenCharId(null);
     setOpenEntryId(null);
-    setSearchParams({}, { replace: true });
-  }, [setSearchParams]);
+    keepTrail({});
+  }, [keepTrail]);
 
   // Left and right stay inside one journal: the same hand, the next day.
   const step = useCallback((delta) => {
@@ -323,8 +392,8 @@ const SimpangPage = () => {
     setOpenEntryId(next.id);
     setTurn(delta > 0 ? "next" : "prev");
     playPageFlip();
-    setSearchParams({ day: next.id }, { replace: true });
-  }, [current, page, journal, setSearchParams]);
+    keepTrail({ day: next.id });
+  }, [current, page, journal, keepTrail]);
 
   // Anything opened is kept, however it was reached — including the day the
   // page opens by itself, which is still the first thing the reader read.
@@ -416,9 +485,15 @@ const SimpangPage = () => {
             <Desk shelf={shelf} onOpen={openHand} />
           )}
 
+          {sharedDays.length > 1 && <Trail
+            shared dugDays={sharedDays} byId={byId} entries={entries}
+            openEntryId={openEntryId} onOpen={openEntry}
+            onClear={() => setSharedDismissed(true)} />}
+
           {dugDays.length > 1 && <Trail
             dugDays={dugDays} byId={byId} entries={entries}
-            openEntryId={openEntryId} onOpen={openEntry} onClear={clearTrail} />}
+            openEntryId={openEntryId} onOpen={openEntry} onClear={clearTrail}
+            onCopy={copyTrail} copied={copied} />}
 
           {shelf.length > 0 && (
             <>
@@ -475,9 +550,15 @@ const SimpangPage = () => {
             onOpenEntry={openEntry}
           />
 
+          {sharedDays.length > 1 && <Trail
+            shared dugDays={sharedDays} byId={byId} entries={entries}
+            openEntryId={openEntryId} onOpen={openEntry}
+            onClear={() => setSharedDismissed(true)} />}
+
           {dugDays.length > 1 && <Trail
             dugDays={dugDays} byId={byId} entries={entries}
-            openEntryId={openEntryId} onOpen={openEntry} onClear={clearTrail} />}
+            openEntryId={openEntryId} onOpen={openEntry} onClear={clearTrail}
+            onCopy={copyTrail} copied={copied} />}
         </section>
       )}
 
