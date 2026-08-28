@@ -155,7 +155,7 @@ const MobileShelf = ({ notebooks, onOpen }) => {
       <div
         ref={trackRef}
         onScroll={onScroll}
-        className="shelf-track w-full flex items-center gap-[5vw] overflow-x-auto snap-x snap-mandatory px-[19vw] py-6"
+        className="shelf-track w-full flex items-center gap-[5vw] overflow-x-auto snap-x snap-mandatory px-[19vw] py-5"
         style={{ perspective: "1000px" }}
       >
         {notebooks.map((nb, i) => {
@@ -195,11 +195,11 @@ const MobileShelf = ({ notebooks, onOpen }) => {
         ))}
       </div>
 
-      <p className="font-hand text-[15px] text-center leading-snug text-neutral-500 dark:text-neutral-400 mt-6 px-8">
+      <p className="font-hand text-[15px] text-center leading-snug text-neutral-500 dark:text-neutral-400 mt-5 px-8">
         stories, poems &amp; things<br />kind people said —
       </p>
 
-      <div className="flex flex-col items-center gap-3 mt-5 text-neutral-400 dark:text-neutral-500">
+      <div className="flex flex-col items-center gap-3 mt-4 text-neutral-400 dark:text-neutral-500">
         <Stamp roomy className="-rotate-2 text-center" />
         <p className="font-mono-ui text-[11px] tracking-[0.22em] uppercase">swipe · tap to open</p>
       </div>
@@ -265,13 +265,13 @@ const HomePage = () => {
 
   if (isMobile) {
     return (
-      <main className="min-h-screen flex flex-col items-center justify-center overflow-x-hidden pt-20 pb-10">
+      <main className="min-h-screen flex flex-col items-center justify-center overflow-x-hidden pt-20 pb-6">
         <div className="text-center text-neutral-400 dark:text-neutral-500 mb-5" aria-hidden="true">
           <p className="font-mono-ui text-[10px] tracking-[0.34em] uppercase">the commonplace book of</p>
           <p className="font-logo text-[30px] text-neutral-700 dark:text-neutral-300 leading-tight mt-0.5">Juan</p>
         </div>
         <MobileShelf notebooks={notebooks} onOpen={openNotebook} />
-        <CrossingCue onOpen={() => navigate("/crossing")} className="mt-8 rotate-[-1.5deg]" />
+        <CrossingCue onOpen={() => navigate("/crossing")} className="mt-5 rotate-[-1.5deg]" />
       </main>
     );
   }
