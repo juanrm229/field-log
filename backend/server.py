@@ -296,6 +296,24 @@ class Paragraph(BaseModel):
     protected: bool = False
 
 
+class EntryLink(BaseModel):
+    """A pointer the writer drew between two days by hand.
+
+    These are not derived. A crossing is inferred — two people happened to claim
+    the same proposition — but a link is authored, one paragraph pointing at one
+    page, and it is the more precise of the two.
+
+    The two kinds are different claims about time and are not interchangeable:
+    `node` is the same stretch of days seen from somewhere else (92% of them
+    land in the same year), while `echo` is the same thing happening again to
+    someone else, a median of eight years later and sometimes thirty-seven.
+    """
+    kind: str = "node"
+    entry_id: str = ""
+    character_id: str = ""
+    para: int = 0
+
+
 class Claim(BaseModel):
     """A paragraph that asserts a named proposition, or turns against one.
 
@@ -322,6 +340,7 @@ class JournalEntry(BaseModel):
     body: str = ""
     paragraphs: List[Paragraph] = []
     claims: List[Claim] = []
+    links: List[EntryLink] = []          # the writer's own @node / @echo
     source_id: str = ""    # the id in the corpus frontmatter, e.g. k2026
     draft: bool = False
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -338,6 +357,7 @@ class JournalEntryCreate(BaseModel):
     body: str = ""
     paragraphs: List[Paragraph] = []
     claims: List[Claim] = []
+    links: List[EntryLink] = []
     source_id: str = ""
     draft: bool = False
 
@@ -997,6 +1017,15 @@ async def get_simpang(x_studio_key: Optional[str] = Header(None)):
                     e["moment_id"] = shown[0]
                 kept.append(e)
         entries = kept
+
+        # A link is a hand-drawn pointer, so a dangling one is worse than none:
+        # it offers the reader a page and then fails to open it. Anything the
+        # filter above removed is dropped from every link list as well.
+        alive = {e["id"] for e in entries}
+        for e in entries:
+            kept_links = [l for l in e.get("links", []) if l.get("entry_id") in alive]
+            if len(kept_links) != len(e.get("links", [])):
+                e["links"] = kept_links
 
     for m in moments:
         m["clashes"] = find_clashes(m["id"], entries, m.get("prop", ""))

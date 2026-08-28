@@ -42,7 +42,8 @@ const measureHeights = (texts, width, extraClass = "") => {
 
 /* Flow the days onto pages of a known size. A day always starts on a fresh
    page; its first page gives room to the heading, its last to the threads. */
-const flowPages = (entries, contentW, contentH, headerH, footerH) => {
+const flowPages = (entries, contentW, contentH, chrome, footCounts) => {
+  const headerH = chrome.headerH;
   if (!contentW || !contentH) return [];
 
   // Everything to be measured, flattened, so the browser lays it out once.
@@ -92,7 +93,8 @@ const flowPages = (entries, contentW, contentH, headerH, footerH) => {
     // The threads print under the last paragraph of a day, so that paragraph
     // has to leave room for them or they would be cut off with it.
     const endOfDay = !expanded[i + 1] || expanded[i + 1].ei !== it.ei;
-    const room = contentH - (endOfDay ? footerH : 0);
+    const [nThere, nEcho] = endOfDay ? footCounts(it.entry) : [0, 0];
+    const room = contentH - (endOfDay ? footHeight(chrome, nThere, nEcho) : 0);
     const cost = it.h + (current.paras.length ? PARA_GAP : 0);
     if (current.paras.length && used + cost > room) {
       commit();
@@ -109,8 +111,21 @@ const flowPages = (entries, contentW, contentH, headerH, footerH) => {
   return pages;
 };
 
-/* The heading and the thread list are measured too, so the space they take is
-   real rather than assumed. */
+/* How tall the foot of a day will be, given what it actually carries.
+   Measuring one worst-case footer and reserving it on every last page would
+   steal room from the many days that carry one thread, or none. */
+const ROW_GAP = 3;      // gap-[3px] between rows
+const GROUP_GAP = 6;    // mt-1.5 between the two groups
+const footHeight = (m, nThere, nEcho) => {
+  if (!nThere && !nEcho) return 0;
+  let h = m.footPad;
+  if (nThere) h += m.labelH + nThere * m.rowH + (nThere - 1) * ROW_GAP;
+  if (nEcho) h += (nThere ? GROUP_GAP : 0) + m.labelH + nEcho * m.rowH + (nEcho - 1) * ROW_GAP;
+  return h;
+};
+
+/* The heading and the parts a foot is built from are measured too, so the space
+   they take is real rather than assumed. */
 const measureChrome = (width) => {
   const probe = document.createElement("div");
   probe.setAttribute("aria-hidden", "true");
@@ -122,16 +137,14 @@ const measureChrome = (width) => {
        <span class="font-mono-ui text-[7px]">1 JANUARY 1987</span>
        <div class="font-hand text-[13px] leading-tight">a title that runs to about this length</div>
      </div>
-     <div id="f" class="mt-2.5 pt-2.5" style="border-top:1px dashed #999">
-       <p class="font-mono-ui text-[6.5px] mb-1">OTHERS WERE THERE</p>
-       <div class="font-cover text-[8px]">A</div><div class="font-cover text-[8px]">B</div>
-       <div class="font-cover text-[8px]">C</div><div class="font-cover text-[8px]">D</div>
-     </div>`;
+     <div id="fpad" class="pt-2.5" style="border-top:1px dashed #999"></div>
+     <p id="flabel" class="font-mono-ui text-[6.5px] mb-1">OTHERS WERE THERE</p>
+     <div id="frow" class="font-cover text-[8px]">A</div>`;
   document.body.appendChild(probe);
-  const headerH = probe.querySelector("#h").getBoundingClientRect().height;
-  const footerH = probe.querySelector("#f").getBoundingClientRect().height;
+  const h = (sel) => probe.querySelector(sel).getBoundingClientRect().height;
+  const out = { headerH: h("#h"), footPad: h("#fpad"), labelH: h("#flabel"), rowH: h("#frow") };
   document.body.removeChild(probe);
-  return { headerH, footerH };
+  return out;
 };
 
 /* The viewport breakpoint, read from something that actually resizes.
@@ -166,7 +179,32 @@ const Dot = ({ variant }) => (
 );
 
 /* ---------- what is printed on one page ---------- */
-const Leaf = ({ page, char, threads, byId, onOpenEntry }) => {
+const ThreadRow = ({ row, byId, onOpenEntry, faint }) => {
+  const c = byId[row.entry.character_id];
+  return (
+    <li>
+      <button
+        onClick={(e) => { e.stopPropagation(); onOpenEntry(row.entry.id); }}
+        data-interactive="true"
+        className="flex items-baseline gap-1.5 w-full text-left">
+        <span className={`ink-${c?.variant || "slate"} font-cover text-[8px] tracking-[0.08em]`}
+          style={{ color: "var(--ink-c)", opacity: faint ? 0.75 : 1 }}>{c ? c.name : "—"}</span>
+        <span className={`font-mono-ui text-[6.5px] tracking-[0.1em] uppercase whitespace-nowrap ${faint ? "text-neutral-400 italic" : "text-neutral-500"}`}>
+          {row.when}
+        </span>
+        <span className={`flex-1 border-b -translate-y-[2px] ${faint ? "border-dashed border-neutral-400/40" : "border-dotted border-neutral-400/50"}`} />
+      </button>
+    </li>
+  );
+};
+
+const FootLabel = ({ children }) => (
+  <p className="font-mono-ui text-[6.5px] tracking-[0.18em] uppercase text-neutral-500 mb-1">
+    {children}
+  </p>
+);
+
+const Leaf = ({ page, char, threads, echoes, byId, onOpenEntry }) => {
   if (!page) return <div className="cream-page w-full h-full" />;
   const { entry, paras, first, last } = page;
   return (
@@ -194,31 +232,28 @@ const Leaf = ({ page, char, threads, byId, onOpenEntry }) => {
         ))}
       </div>
 
-      {last && threads && threads.length > 0 && (
+      {last && ((threads && threads.length > 0) || (echoes && echoes.length > 0)) && (
         <footer className="mt-auto pt-2.5 border-t border-dashed border-neutral-400/50">
-          <p className="font-mono-ui text-[6.5px] tracking-[0.18em] uppercase text-neutral-500 mb-1">
-            others were there
-          </p>
-          <ul className="flex flex-col gap-[3px]">
-            {threads.slice(0, 4).map((t) => {
-              const c = byId[t.entry.character_id];
-              return (
-                <li key={t.entry.id}>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onOpenEntry(t.entry.id); }}
-                    data-interactive="true"
-                    className="flex items-baseline gap-1.5 w-full text-left">
-                    <span className={`ink-${c?.variant || "slate"} font-cover text-[8px] tracking-[0.08em]`}
-                      style={{ color: "var(--ink-c)" }}>{c ? c.name : "—"}</span>
-                    <span className="font-mono-ui text-[6.5px] tracking-[0.1em] uppercase text-neutral-500 whitespace-nowrap">
-                      {t.when}
-                    </span>
-                    <span className="flex-1 border-b border-dotted border-neutral-400/50 -translate-y-[2px]" />
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+          {threads && threads.length > 0 && (
+            <>
+              <FootLabel>others were there</FootLabel>
+              <ul className="flex flex-col gap-[3px]">
+                {threads.map((t) => (
+                  <ThreadRow key={t.entry.id} row={t} byId={byId} onOpenEntry={onOpenEntry} />
+                ))}
+              </ul>
+            </>
+          )}
+          {echoes && echoes.length > 0 && (
+            <div className={threads && threads.length ? "mt-1.5" : ""}>
+              <FootLabel>this happened before</FootLabel>
+              <ul className="flex flex-col gap-[3px]">
+                {echoes.map((t) => (
+                  <ThreadRow key={t.entry.id} row={t} byId={byId} onOpenEntry={onOpenEntry} faint />
+                ))}
+              </ul>
+            </div>
+          )}
         </footer>
       )}
     </div>
@@ -274,11 +309,67 @@ const JournalBook = ({ char, entries, allEntries, moments, byId, relativeTo, sta
     return () => ro.disconnect();
   }, []);
 
+  /* Two different claims about time, so two different lists.
+     `there` is everyone else standing in the same stretch of days — the writer's
+     own @node pointers first, because they were aimed, then the crossings the
+     server inferred from shared propositions, minus anything already named.
+     `earlier` is @echo: the same thing happening again to someone else, a
+     median of eight years apart and once thirty-seven. Folding the second into
+     the first would say they mean the same thing, and they do not. */
+  const MAX_THERE = 4;
+  const MAX_EARLIER = 2;
+
+  const linkRows = useCallback((entry, kind) => {
+    if (!entry || !entry.links) return [];
+    const out = [];
+    entry.links.forEach((l) => {
+      if (l.kind !== kind) return;
+      const e = allEntries.find((x) => x.id === l.entry_id);
+      if (!e || out.some((r) => r.entry.id === e.id)) return;
+      out.push({ entry: e, when: relativeTo(entry.date_label, e.date_label) });
+    });
+    return out;
+  }, [allEntries, relativeTo]);
+
+  const threadsFor = useCallback((entry) => {
+    if (!entry) return [];
+    const out = linkRows(entry, "node");
+    const seen = new Set(out.map((r) => r.entry.id));
+    // One door per person. A proposition that ran through four of Elmar's days
+    // used to print his name four times and spend every slot on one hand; the
+    // reader only needs the way in, and his other days are inside his own book.
+    const hands = new Set(out.map((r) => r.entry.character_id));
+    const mine = entry.moment_ids || (entry.moment_id ? [entry.moment_id] : []);
+    mine.forEach((mid) => {
+      allEntries.forEach((e) => {
+        if (e.id === entry.id || seen.has(e.id) || hands.has(e.character_id)) return;
+        // The label promises other people, and the reader is already holding
+        // this one's notebook: their own other days are a page-turn away, not a
+        // crossing. Authored @node links never point at their own writer, so
+        // nothing the writer drew is lost here.
+        if (e.character_id === entry.character_id) return;
+        const theirs = e.moment_ids || (e.moment_id ? [e.moment_id] : []);
+        if (!theirs.includes(mid)) return;
+        seen.add(e.id);
+        hands.add(e.character_id);
+        out.push({ entry: e, when: relativeTo(entry.date_label, e.date_label) });
+      });
+    });
+    return out.slice(0, MAX_THERE);
+  }, [allEntries, relativeTo, linkRows]);
+
+  const echoesFor = useCallback(
+    (entry) => linkRows(entry, "echo").slice(0, MAX_EARLIER), [linkRows]);
+
+  const footCounts = useCallback(
+    (entry) => [threadsFor(entry).length, echoesFor(entry).length],
+    [threadsFor, echoesFor]);
+
   useLayoutEffect(() => {
     if (!box) return;
-    const { headerH, footerH } = measureChrome(box.contentW);
-    setPages(flowPages(entries, box.contentW, box.contentH, headerH, footerH));
-  }, [entries, box]);
+    setPages(flowPages(entries, box.contentW, box.contentH,
+      measureChrome(box.contentW), footCounts));
+  }, [entries, box, footCounts]);
 
   useEffect(() => { setView(0); }, [char.id, isMobile]);
 
@@ -362,27 +453,10 @@ const JournalBook = ({ char, entries, allEntries, moments, byId, relativeTo, sta
     return () => window.removeEventListener("keydown", onKey);
   }, [goTo, view]);
 
-  // Threads belong to the day, so they are looked up per page.
-  const threadsFor = useCallback((entry) => {
-    if (!entry) return [];
-    const mine = entry.moment_ids || (entry.moment_id ? [entry.moment_id] : []);
-    const seen = new Set();
-    const out = [];
-    mine.forEach((mid) => {
-      allEntries.forEach((e) => {
-        if (e.id === entry.id || seen.has(e.id)) return;
-        const theirs = e.moment_ids || (e.moment_id ? [e.moment_id] : []);
-        if (!theirs.includes(mid)) return;
-        seen.add(e.id);
-        out.push({ entry: e, when: relativeTo(entry.date_label, e.date_label) });
-      });
-    });
-    return out;
-  }, [allEntries, relativeTo]);
-
   const renderPage = (page) => (
     <Leaf page={page} char={char} byId={byId}
       threads={page && page.last ? threadsFor(page.entry) : null}
+      echoes={page && page.last ? echoesFor(page.entry) : null}
       onOpenEntry={onOpenEntry} />
   );
 
