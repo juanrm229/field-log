@@ -24,6 +24,9 @@ export const updateSite = async (data) => (await axios.put(`${API}/site`, data, 
 export const getNotebooks = async () => (await axios.get(`${API}/notebooks`)).data;
 export const getNotebookFull = async (slug) => (await axios.get(`${API}/notebooks/${slug}/full`)).data;
 export const searchEntries = async (q) => (await axios.get(`${API}/search`, { params: { q } })).data;
+// The town's journals. A separate call from the one above, not a wider version
+// of it, so the two can be deployed in either order.
+export const searchCrossing = async (q) => (await axios.get(`${API}/search/crossing`, { params: { q } })).data;
 // One piece by its own readable address, for /read/:slug
 export const getReadBySlug = async (slug) => (await axios.get(`${API}/read/${slug}`)).data;
 

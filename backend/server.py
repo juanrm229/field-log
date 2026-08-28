@@ -547,12 +547,22 @@ async def read_by_slug(slug: str):
     return {"entry": clean(entry), "notebook": clean(nb)}
 
 
+def word_start(q):
+    """Match from the start of a word, but let the ending run.
+
+    Indonesian builds on its roots, so "goreng" has to find "gorengan". Plain
+    substring matching went too far the other way: "aru" matched harus, baru and
+    sarung, and reported that 164 days and all 18 hands were about it.
+    """
+    return {"$regex": "\\b" + re.escape(q), "$options": "i"}
+
+
 @api_router.get("/search")
 async def search_entries(q: str = ""):
     q = q.strip()
     if len(q) < 2:
         return []
-    rx = {"$regex": re.escape(q), "$options": "i"}
+    rx = word_start(q)
     cursor = db.entries.find({
         "draft": {"$ne": True},
         "$or": [
@@ -586,6 +596,83 @@ async def search_entries(q: str = ""):
             "notebook_label": nb["label"],
         })
     return results
+
+
+# How many days the overlay shows. The header still speaks for all of them.
+SEARCH_DAYS_SHOWN = 12
+
+
+@api_router.get("/search/crossing")
+async def search_crossing(q: str = "", x_studio_key: Optional[str] = Header(None)):
+    """Search the town's journals.
+
+    Kept separate from /search rather than folded into it, so the two can be
+    deployed in either order without a window where the overlay gets a shape it
+    does not expect.
+
+    A day is the unit, not a line. The page a reader lands on is somebody's
+    whole day, so a match is reported as the day holding it — and the header
+    counts hands and years, because "six days, four hands, thirty-seven years"
+    tells you more about this town than six snippets do.
+    """
+    q = q.strip()
+    empty = {"days": [], "total": 0, "hands": 0, "years": []}
+    if len(q) < 2:
+        return empty
+
+    owner = x_studio_key == STUDIO_PASSWORD
+    rx = word_start(q)
+    # Every match is counted, only a handful are carried back. The collection is
+    # 187 documents, so counting all of them is free — and a capped count would
+    # make the header lie about common words: "malam" is in 80 days, and a
+    # summary built from the first 20 would have said 20.
+    found = await db.journal_entries.find({
+        "draft": {"$ne": True},
+        "$or": [{"title": rx}, {"body": rx}],
+    }).sort("t", 1).to_list(500)
+
+    # The same shield /simpang applies: a day that belongs only to hidden
+    # crossings must not surface here either, or search becomes the back door.
+    if not owner:
+        visible = {m["id"] for m in await db.moments.find(
+            {"hidden": {"$ne": True}}, {"id": 1}).to_list(500)}
+        kept = []
+        for e in found:
+            belongs = e.get("moment_ids") or ([e["moment_id"]] if e.get("moment_id") else [])
+            if not belongs or [m for m in belongs if m in visible]:
+                kept.append(e)
+        found = kept
+    if not found:
+        return empty
+
+    total = len(found)
+    hands = len({e.get("character_id") for e in found})
+    years = [int(e["date_label"][-4:]) for e in found
+             if (e.get("date_label") or "")[-4:].isdigit()]
+
+    chars = {c["id"]: c for c in await db.characters.find().to_list(200)}
+    days = []
+    for e in found[:SEARCH_DAYS_SHOWN]:
+        body = e.get("body", "") or ""
+        i = body.lower().find(q.lower())
+        snippet = (body[max(0, i - 45): i + 90] if i >= 0 else body[:120]).strip()
+        c = chars.get(e.get("character_id")) or {}
+        label = e.get("date_label", "")
+        days.append({
+            "id": e["id"],
+            "character": c.get("name", ""),
+            "variant": c.get("variant", "slate"),
+            "date_label": label,
+            "hour": e.get("hour"),
+            "title": e.get("title", ""),
+            "snippet": snippet,
+        })
+    return {
+        "days": days,
+        "total": total,
+        "hands": hands,
+        "years": [min(years), max(years)] if years else [],
+    }
 
 
 @api_router.post("/entries")
