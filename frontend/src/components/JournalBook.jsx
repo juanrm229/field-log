@@ -40,11 +40,47 @@ const measureHeights = (texts, width, extraClass = "") => {
   return out;
 };
 
+/* Every day's heading measured with its own title and its own hour.
+
+   One sample heading stood in for all of them before, and a title of average
+   length cannot speak for "aku menirukan orang yang tidak pernah menjelaskan
+   apa pun", which wraps to three lines. The margin under the heading is counted
+   too: it is space the first paragraph does not get. */
+const measureHeaders = (entries, width, charName) => {
+  const out = new Map();
+  if (!entries.length || !width) return out;
+  const probe = document.createElement("div");
+  probe.setAttribute("aria-hidden", "true");
+  probe.style.cssText =
+    `position:fixed;left:-10000px;top:0;visibility:hidden;pointer-events:none;width:${width}px`;
+  probe.innerHTML = entries.map((e) => {
+    const hour = hourLabel(e.hour);
+    return `<header class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 pb-2 mb-2.5" style="border-bottom:1px dashed #999">
+      <span class="w-2 h-2 rounded-full shrink-0"></span>
+      <span class="font-cover text-[9px] tracking-[0.1em]">${escapeHtml(String(charName || "").toUpperCase())}</span>
+      <span class="font-mono-ui text-[7px] tracking-[0.16em] uppercase">${escapeHtml(e.date_label || "")}</span>
+      ${hour ? `<span class="font-mono-ui text-[7px] tracking-[0.16em] uppercase">${hour}</span>` : ""}
+      ${e.title ? `<span class="font-hand text-[13px] basis-full leading-tight">${escapeHtml(e.title)}</span>` : ""}
+    </header>`;
+  }).join("");
+  document.body.appendChild(probe);
+  Array.from(probe.children).forEach((el, i) => {
+    const cs = window.getComputedStyle(el);
+    out.set(entries[i].id, el.getBoundingClientRect().height + parseFloat(cs.marginBottom || 0));
+  });
+  document.body.removeChild(probe);
+  return out;
+};
+
 /* Flow the days onto pages of a known size. A day always starts on a fresh
    page; its first page gives room to the heading, its last to the threads. */
-const flowPages = (entries, contentW, contentH, chrome, footCounts) => {
-  const headerH = chrome.headerH;
+const flowPages = (entries, contentW, contentH, chrome, footCounts, charName) => {
   if (!contentW || !contentH) return [];
+  const headers = measureHeaders(entries, contentW, charName);
+  const headerOf = (entry) => {
+    const h = headers.get(entry.id);
+    return h > 0 ? h : chrome.headerH;
+  };
 
   // Everything to be measured, flattened, so the browser lays it out once.
   const items = [];
@@ -80,7 +116,7 @@ const flowPages = (entries, contentW, contentH, chrome, footCounts) => {
   let current = null;
   let used = 0;
 
-  const start = (entry, first) => { current = { entry, paras: [], first }; used = first ? headerH : 0; };
+  const start = (entry, first) => { current = { entry, paras: [], first }; used = first ? headerOf(entry) : 0; };
   const commit = () => { if (current && current.paras.length) pages.push(current); };
 
   let lastEi = -1;
@@ -135,6 +171,7 @@ const measureChrome = (width) => {
     `<div id="h" class="pb-2 mb-2.5" style="border-bottom:1px dashed #999">
        <span class="font-cover text-[9px] tracking-[0.1em]">NAME</span>
        <span class="font-mono-ui text-[7px]">1 JANUARY 1987</span>
+       <span class="font-mono-ui text-[7px]">11 PM</span>
        <div class="font-hand text-[13px] leading-tight">a title that runs to about this length</div>
      </div>
      <div id="fpad" class="pt-2.5" style="border-top:1px dashed #999"></div>
@@ -171,6 +208,16 @@ const useBreakpoint = (query, ref) => {
     };
   }, [query, ref]);
   return matches;
+};
+
+/* The frontmatter keeps an hour and no minute. "22:00" would invent the minute,
+   so the hour is printed as an hour — and it is worth printing: 174 of the 187
+   days in this book were written between eight at night and four in the
+   morning, which is the one thing every hand here has in common. */
+const hourLabel = (h) => {
+  if (h === null || h === undefined || Number.isNaN(Number(h))) return "";
+  const n = ((Number(h) % 24) + 24) % 24;
+  return `${n % 12 === 0 ? 12 : n % 12} ${n < 12 ? "AM" : "PM"}`;
 };
 
 const Dot = ({ variant }) => (
@@ -217,6 +264,11 @@ const Leaf = ({ page, char, threads, echoes, byId, onOpenEntry }) => {
           <span className="font-mono-ui text-[7px] tracking-[0.16em] uppercase text-neutral-500">
             {entry.date_label}
           </span>
+          {hourLabel(entry.hour) && (
+            <span className="font-mono-ui text-[7px] tracking-[0.16em] uppercase text-neutral-400">
+              {hourLabel(entry.hour)}
+            </span>
+          )}
           {entry.title && (
             <span className="font-hand text-[13px] text-neutral-500 basis-full leading-tight">{entry.title}</span>
           )}
@@ -365,11 +417,19 @@ const JournalBook = ({ char, entries, allEntries, moments, byId, relativeTo, sta
     (entry) => [threadsFor(entry).length, echoesFor(entry).length],
     [threadsFor, echoesFor]);
 
+  /* Re-flowing the book is the expensive thing on this page, and it should
+     depend only on what the paper is and how big it is. Naming the counting
+     function as a dependency put a function identity in that list, which is one
+     more thing that has to stay referentially stable for no reason. The latest
+     counter is read through a ref instead. */
+  const footCountsRef = useRef(footCounts);
+  footCountsRef.current = footCounts;
+
   useLayoutEffect(() => {
     if (!box) return;
     setPages(flowPages(entries, box.contentW, box.contentH,
-      measureChrome(box.contentW), footCounts));
-  }, [entries, box, footCounts]);
+      measureChrome(box.contentW), (e) => footCountsRef.current(e), char.name));
+  }, [entries, box, char.name]);
 
   useEffect(() => { setView(0); }, [char.id, isMobile]);
 
@@ -608,18 +668,25 @@ const JournalBook = ({ char, entries, allEntries, moments, byId, relativeTo, sta
           width: spreadView ? "min(680px, 92vw, 94vh)" : "min(340px, 88vw, 47vh)",
           transition: "width 0.4s cubic-bezier(0.22,1,0.36,1)",
         }}>
-        {/* A page of exactly the printed size, twice removed from trouble: it
-            sits outside the area the leaf animates, and its own width comes from
-            a copy of the book's width rule that carries no transition — reading
-            it mid-transition described a page that existed for 200ms. */}
+        {/* A page of exactly the printed size, three times removed from trouble.
+            It sits outside the area the leaf animates; its width is a copy of
+            the book's rule carrying no transition, because reading it
+            mid-transition described a page that existed for 200ms; and it keys
+            off the breakpoint rather than the open view.
+
+            That last one matters because the container is narrow while the book
+            is shut and wide once it opens. A gauge that followed it re-measured
+            on every open and close, and re-flowed all 187 days each time, to
+            arrive back at the same answer. How wide a page is depends on the
+            screen, never on which page is showing. */}
         <div
           aria-hidden="true"
           className="absolute top-0 left-0 invisible pointer-events-none"
-          style={{ width: spreadView ? "min(680px, 92vw, 94vh)" : "min(340px, 88vw, 47vh)" }}>
+          style={{ width: isMobile ? "min(340px, 88vw, 47vh)" : "min(680px, 92vw, 94vh)" }}>
           <div
             ref={gaugeRef}
             className="cream-page px-[9%] py-[8%]"
-            style={{ width: spreadView ? "50%" : "100%", aspectRatio: "300/460" }}
+            style={{ width: isMobile ? "100%" : "50%", aspectRatio: "300/460" }}
           />
         </div>
         <div

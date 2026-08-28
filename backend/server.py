@@ -335,6 +335,9 @@ class JournalEntry(BaseModel):
     moment_ids: List[str] = []           # every crossing this entry touches
     t: int = 1
     date_label: str = ""
+    # The corpus records an hour and never a minute, so this is an hour. 174 of
+    # the 187 days were written between 20:00 and 04:00; the page says so.
+    hour: Optional[int] = None
     place: str = ""
     title: str = ""
     body: str = ""
@@ -352,6 +355,7 @@ class JournalEntryCreate(BaseModel):
     moment_ids: List[str] = []
     t: int = 1
     date_label: str = ""
+    hour: Optional[int] = None
     place: str = ""
     title: str = ""
     body: str = ""
