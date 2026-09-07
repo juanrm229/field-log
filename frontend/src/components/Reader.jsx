@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { X, List, Minus, Plus, Moon, Sun, ChevronLeft, ChevronRight, CloudRain, CloudOff, Share2, SlidersHorizontal } from "lucide-react";
+import { X, List, Minus, Plus, Moon, Sun, ChevronLeft, ChevronRight, CloudRain, CloudOff, Share2, SlidersHorizontal, Highlighter, NotebookPen, Trash2 } from "lucide-react";
 import { readingStats } from "../lib/reading";
 import ReactionBar from "./ReactionBar";
 import QuoteCard from "./QuoteCard";
 import { saveReaderPos, getReaderPos } from "../lib/bookmarks";
 import Portal from "./Portal";
+import { addMarginalia, loadMarginalia, markAge, removeMarginalia } from "../lib/marginalia";
 
 // Reader preferences outlive a single sitting — a reader who sized the text up
 // once should not have to do it again on their next visit.
@@ -27,6 +28,118 @@ const saveScroll = (id, chapter, top) => {
 const loadScroll = (id) => {
   try { return JSON.parse(localStorage.getItem(scrollKey(id))); } catch { return null; }
 };
+
+const MOODS = {
+  trace: { glyph: "○", label: "a trace", className: "is-trace" },
+  ache: { glyph: "!", label: "an ache", className: "is-ache" },
+  return: { glyph: "↗", label: "a return", className: "is-return" },
+};
+
+const MarkedText = ({ text, marks, onOpen }) => {
+  if (!text || marks.length === 0) return text;
+  const ranges = [];
+  marks.forEach((mark) => {
+    const start = text.indexOf(mark.quote);
+    if (start < 0) return;
+    const end = start + mark.quote.length;
+    if (ranges.some((range) => start < range.end && end > range.start)) return;
+    ranges.push({ start, end, mark });
+  });
+  ranges.sort((a, b) => a.start - b.start);
+  if (ranges.length === 0) return text;
+
+  const parts = [];
+  let cursor = 0;
+  ranges.forEach((range) => {
+    if (range.start > cursor) parts.push(text.slice(cursor, range.start));
+    const mood = MOODS[range.mark.mood] || MOODS.trace;
+    parts.push(
+      <mark
+        key={range.mark.id}
+        className={`living-mark ${mood.className}`}
+        tabIndex={0}
+        role="button"
+        aria-label={`Open margin note: ${range.mark.quote}`}
+        onClick={() => onOpen(range.mark)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onOpen(range.mark);
+          }
+        }}
+      >
+        {text.slice(range.start, range.end)}
+      </mark>
+    );
+    cursor = range.end;
+  });
+  if (cursor < text.length) parts.push(text.slice(cursor));
+  return parts;
+};
+
+const MarginDrawer = ({ ink, marks, activeId, draft, onDraft, onSave, onClose, onOpen, onRemove }) => (
+  <aside className={`margin-drawer ${ink ? "margin-drawer-dark" : ""}`} aria-label="Your private margins">
+    <div className="margin-drawer-head">
+      <div>
+        <p className="margin-kicker">LIVING MARGINALIA</p>
+        <h2>Your private margin</h2>
+      </div>
+      <button onClick={onClose} className={`reader-ctl ${ink ? "reader-ctl-dark" : ""}`} aria-label="Close margins"><X size={14} /></button>
+    </div>
+
+    {draft && (
+      <form className="margin-composer" onSubmit={(event) => { event.preventDefault(); onSave(); }}>
+        <blockquote>“{draft.quote}”</blockquote>
+        <label htmlFor="margin-note">What did this line leave behind?</label>
+        <textarea
+          id="margin-note"
+          autoFocus
+          maxLength={240}
+          value={draft.note}
+          onChange={(event) => onDraft({ ...draft, note: event.target.value })}
+          placeholder="A thought, a memory, a question…"
+        />
+        <div className="margin-composer-foot">
+          <div className="margin-moods" aria-label="Kind of mark">
+            {Object.entries(MOODS).map(([key, mood]) => (
+              <button key={key} type="button" className={draft.mood === key ? "is-picked" : ""} onClick={() => onDraft({ ...draft, mood: key })} aria-label={mood.label} aria-pressed={draft.mood === key}>
+                <span>{mood.glyph}</span>{mood.label}
+              </button>
+            ))}
+          </div>
+          <button className="margin-keep" type="submit">keep in margin</button>
+        </div>
+      </form>
+    )}
+
+    {!draft && marks.length === 0 && (
+      <div className="margin-empty">
+        <span>└──</span>
+        <p>Select a line while reading.<br />It will wait here when you return.</p>
+      </div>
+    )}
+
+    <div className="margin-list">
+      {marks.map((mark) => {
+        const mood = MOODS[mark.mood] || MOODS.trace;
+        return (
+          <article key={mark.id} className={`margin-card ${mood.className} ${activeId === mark.id ? "is-active" : ""}`}>
+            <button className="margin-card-main" onClick={() => onOpen(mark)}>
+              <span className="margin-card-glyph">{mood.glyph}</span>
+              <span>
+                <span className="margin-card-quote">“{mark.quote}”</span>
+                {mark.note && <span className="margin-card-note">{mark.note}</span>}
+                <span className="margin-card-meta">{mark.chapterTitle || "the page"} · {markAge(mark.createdAt)}</span>
+              </span>
+            </button>
+            <button className="margin-delete" onClick={() => onRemove(mark.id)} aria-label={`Remove margin note: ${mark.quote}`}><Trash2 size={12} /></button>
+          </article>
+        );
+      })}
+    </div>
+    <p className="margin-privacy">stored only in this browser · invisible to everyone else</p>
+  </aside>
+);
 
 // Synthesized rain ambience (Web Audio API - generated noise, no audio files)
 const useRainSound = () => {
@@ -129,6 +242,10 @@ const Reader = ({ entry, notebookLabel, onClose }) => {
   const stats = readingStats(entry);
   const [selection, setSelection] = useState(null); // {text, x, y}
   const [quoteCard, setQuoteCard] = useState(null);
+  const [margins, setMargins] = useState(() => loadMarginalia(entry.id));
+  const [showMargins, setShowMargins] = useState(false);
+  const [marginDraft, setMarginDraft] = useState(null);
+  const [activeMargin, setActiveMargin] = useState(null);
   const savedPos = hasChapters ? getReaderPos(entry.id) : null;
 
   const onTextMouseUp = () => {
@@ -229,6 +346,40 @@ const Reader = ({ entry, notebookLabel, onClose }) => {
 
   const currentChapter = hasChapters && chapter >= 0 ? entry.chapters[chapter] : null;
   const bodyText = currentChapter ? currentChapter.body : entry.body;
+  const visibleMargins = margins.filter((mark) => mark.chapter === (hasChapters ? chapter : -1));
+
+  const startMargin = () => {
+    if (!selection) return;
+    setMarginDraft({
+      quote: selection.text,
+      note: "",
+      mood: "trace",
+      chapter: hasChapters ? chapter : -1,
+      chapterTitle: currentChapter ? currentChapter.title : entry.title,
+    });
+    setShowMargins(true);
+    setSelection(null);
+    window.getSelection()?.removeAllRanges();
+  };
+
+  const saveMargin = () => {
+    if (!marginDraft?.quote) return;
+    const next = addMarginalia(entry.id, marginDraft);
+    setMargins(next);
+    setActiveMargin(next[0].id);
+    setMarginDraft(null);
+  };
+
+  const openMargin = (mark) => {
+    if (hasChapters && mark.chapter !== chapter) goChapter(mark.chapter);
+    setActiveMargin(mark.id);
+    setShowMargins(true);
+  };
+
+  const deleteMargin = (markId) => {
+    setMargins(removeMarginalia(entry.id, markId));
+    if (activeMargin === markId) setActiveMargin(null);
+  };
 
   // "How much is left" is the question a progress bar only half answers.
   const wordsLeft = Math.round(((bodyText || "").trim().split(/\s+/).filter(Boolean).length) * (1 - progress));
@@ -290,6 +441,17 @@ const Reader = ({ entry, notebookLabel, onClose }) => {
               {ink ? <Sun size={14} /> : <Moon size={14} />}
             </button>
           </div>
+
+          <button
+            data-testid="reader-margins"
+            onClick={() => { setShowMargins((value) => !value); setShowSettings(false); setShowToc(false); }}
+            className={`reader-ctl reader-margin-ctl ${ink ? "reader-ctl-dark" : ""} ${showMargins ? "ring-1 ring-[#f94b0c]" : ""}`}
+            aria-label={`${margins.length} private margin notes`}
+            aria-expanded={showMargins}
+          >
+            <NotebookPen size={14} />
+            {margins.length > 0 && <span>{margins.length}</span>}
+          </button>
 
           {/* Wrapped rather than carrying sm:hidden itself: .reader-ctl sets
               display:inline-flex from App.css, which loads after Tailwind and
@@ -388,7 +550,7 @@ const Reader = ({ entry, notebookLabel, onClose }) => {
                 <div>
                   <div onMouseUp={onTextMouseUp} className={`mt-12 text-left w-full font-serif-read whitespace-pre-line ${isPoem ? "text-center" : ""} ${ink ? "text-neutral-200" : "text-neutral-800"}`}
                     style={{ fontSize: `${fontSize}px`, lineHeight: 1.9 }}>
-                    {entry.body}
+                    <MarkedText text={entry.body} marks={visibleMargins} onOpen={openMargin} />
                   </div>
                   <ReactionBar entryId={entry.id} ink={ink} />
                 </div>
@@ -402,7 +564,7 @@ const Reader = ({ entry, notebookLabel, onClose }) => {
               </h2>
               <div onMouseUp={onTextMouseUp} className={`font-serif-read whitespace-pre-line drop-cap ${ink ? "text-neutral-200" : "text-neutral-800"}`}
                 style={{ fontSize: `${fontSize}px`, lineHeight: 1.95 }}>
-                {bodyText}
+                <MarkedText text={bodyText} marks={visibleMargins} onOpen={openMargin} />
               </div>
               <div className="mt-14 flex items-center justify-between">
                 <button onClick={() => goChapter(chapter - 1)} className={`reader-ctl gap-1.5 px-4 w-auto ${ink ? "reader-ctl-dark" : ""}`}>
@@ -423,16 +585,39 @@ const Reader = ({ entry, notebookLabel, onClose }) => {
         </div>
       </div>
 
+      {visibleMargins.length > 0 && (
+        <nav className={`margin-presence-rail ${ink ? "is-dark" : ""}`} aria-label="Marks on this page">
+          {visibleMargins.map((mark) => {
+            const at = Math.max(4, Math.min(96, ((bodyText || "").indexOf(mark.quote) / Math.max(1, (bodyText || "").length)) * 100));
+            return <button key={mark.id} className={activeMargin === mark.id ? "is-active" : ""} style={{ top: `${at}%` }} onClick={() => openMargin(mark)} aria-label={`Open mark: ${mark.quote}`} />;
+          })}
+        </nav>
+      )}
+
+      {showMargins && (
+        <MarginDrawer
+          ink={ink}
+          marks={margins}
+          activeId={activeMargin}
+          draft={marginDraft}
+          onDraft={setMarginDraft}
+          onSave={saveMargin}
+          onClose={() => { setShowMargins(false); setMarginDraft(null); }}
+          onOpen={openMargin}
+          onRemove={deleteMargin}
+        />
+      )}
+
       {/* floating share-quote button near text selection */}
       {selection && !quoteCard && (
-        <button
-          data-testid="share-quote-btn"
-          onClick={() => { setQuoteCard(selection.text); setSelection(null); }}
-          className="fixed z-[110] pill-dark h-9 px-4 gap-1.5 text-[10px] font-mono-ui uppercase tracking-[0.12em] search-pop"
+        <div
+          className="fixed z-[110] selection-tools search-pop"
           style={{ left: Math.max(12, Math.min(window.innerWidth - 160, selection.x - 70)), top: Math.max(60, selection.y - 46) }}
         >
-          <Share2 size={12} /> Quote card
-        </button>
+          <button data-testid="keep-margin-btn" onClick={startMargin}><Highlighter size={12} /> Keep</button>
+          <span />
+          <button data-testid="share-quote-btn" onClick={() => { setQuoteCard(selection.text); setSelection(null); }}><Share2 size={12} /> Share</button>
+        </div>
       )}
 
       {quoteCard && (

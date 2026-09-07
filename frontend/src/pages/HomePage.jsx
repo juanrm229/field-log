@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import NotebookCover from "../components/NotebookCover";
 import { useNotebooks } from "../context/NotebooksContext";
 import { hasBookmark } from "../lib/bookmarks";
+import { getDeskMemory, recordDeskVisit } from "../lib/deskMemory";
 import { playPaperTick } from "../lib/sounds";
 import LoadError from "../components/LoadError";
 
@@ -33,7 +34,7 @@ const Stamp = ({ className = "", roomy = false }) => (
 );
 
 // Desktop only: ink annotations scattered around the stack, like margin notes on a desk.
-const DeskScene = ({ mx, my }) => (
+const DeskScene = ({ mx, my, memory }) => (
   <div className="absolute inset-0 pointer-events-none select-none text-neutral-400 dark:text-neutral-500" aria-hidden="true">
     {/* invitation above the stack */}
     <div className="absolute left-1/2 text-center" style={{ top: "8%", transform: `translateX(-50%) translate(${mx * -7}px, ${my * -4}px)` }}>
@@ -64,7 +65,56 @@ const DeskScene = ({ mx, my }) => (
     <p className="absolute font-mono-ui text-[8.5px] tracking-[0.26em] uppercase" style={{ right: "24%", bottom: "18%", transform: `rotate(1.5deg) translate(${mx * -8}px, ${my * -5}px)` }}>
       pick one to open →
     </p>
+
+    {(memory.visits >= 3 || Object.keys(memory.opened).length >= 2) && (
+      <span className="desk-coffee-ring absolute left-[13%] top-[19%]" />
+    )}
   </div>
+);
+
+const relativeDay = (timestamp) => {
+  if (!timestamp) return "some time ago";
+  const days = Math.floor((Date.now() - timestamp) / 86400000);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 30) return `${days} days ago`;
+  return new Date(timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+};
+
+const DeskMemorySlip = ({ memory, onResume, compact = false, className = "" }) => {
+  const last = memory.lastRead || memory.lastNotebook;
+  if (!last) return null;
+  const title = memory.lastRead ? memory.lastRead.title : memory.lastNotebook.label;
+  const when = memory.lastRead ? memory.lastRead.at : memory.lastNotebook.lastOpenedAt;
+  return (
+    <div className={className}>
+      <button
+        type="button"
+        onClick={onResume}
+        data-testid="desk-memory-slip"
+        aria-label={`Return to ${title}`}
+        className={`desk-memory-slip group relative block text-left text-[#3a352c] ${compact ? "w-[min(78vw,270px)] px-4 py-3" : "w-[220px] px-5 py-4"}`}
+      >
+        <span className="desk-memory-tape" aria-hidden="true" />
+        <span className="block font-mono-ui text-[8px] tracking-[0.27em] uppercase text-[#8a7657]">
+          desk record · visit {Math.max(1, memory.visits)}
+        </span>
+        <span className="block font-hand text-[18px] leading-tight mt-1 truncate">{title}</span>
+        <span className="block font-mono-ui text-[8px] tracking-[0.14em] uppercase text-[#9b8a6c] mt-1">
+          left open {relativeDay(when)}
+        </span>
+        <span className="block font-hand text-[15px] text-[#c93a07] mt-2">
+          return to it <span className="memory-arrow inline-block">→</span>
+        </span>
+      </button>
+    </div>
+  );
+};
+
+const WearMarks = ({ times = 1 }) => (
+  <span className={`notebook-wear notebook-wear-${Math.min(3, times)}`} aria-hidden="true">
+    <span />
+  </span>
 );
 
 /*
@@ -109,7 +159,7 @@ const CrossingCue = ({ onOpen, className = "", style }) => (
   </div>
 );
 
-const MobileShelf = ({ notebooks, onOpen }) => {
+const MobileShelf = ({ notebooks, onOpen, memory }) => {
   const trackRef = useRef(null);
   const slideRefs = useRef([]);
   const frame = useRef(null);
@@ -175,6 +225,7 @@ const MobileShelf = ({ notebooks, onOpen }) => {
               }}
             >
               {hasBookmark(nb.slug) && <Ribbon />}
+              {memory.opened[nb.slug] && <WearMarks times={memory.opened[nb.slug].times} />}
               <NotebookCover variant={nb.variant} label={nb.label} coverTitle={nb.cover_title} subtitle={nb.subtitle} />
             </button>
           );
@@ -212,9 +263,12 @@ const HomePage = () => {
   const [hovered, setHovered] = useState(null);
   const [tilt, setTilt] = useState({ rx: 0, ry: 0 });
   const [mouse, setMouse] = useState({ mx: 0, my: 0 });
+  const [memory, setMemory] = useState(getDeskMemory);
   const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 639px)").matches);
   const { notebooks, loading, error, refresh } = useNotebooks();
   const frame = useRef(null);
+
+  useEffect(() => { setMemory(recordDeskVisit()); }, []);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 639px)");
@@ -243,6 +297,10 @@ const HomePage = () => {
   };
 
   const openNotebook = (slug) => navigate(`/notebook/${slug}`);
+  const resumeMemory = () => {
+    if (memory.lastRead && memory.lastRead.slug) navigate(`/read/${memory.lastRead.slug}`);
+    else if (memory.lastNotebook) navigate(`/notebook/${memory.lastNotebook.slug}`);
+  };
 
   const n = notebooks.length;
   const spread = n <= 3 ? 63 : n === 4 ? 52 : 44;
@@ -270,7 +328,8 @@ const HomePage = () => {
           <p className="font-mono-ui text-[10px] tracking-[0.34em] uppercase">the commonplace book of</p>
           <p className="font-logo text-[30px] text-neutral-700 dark:text-neutral-300 leading-tight mt-0.5">Juan</p>
         </div>
-        <MobileShelf notebooks={notebooks} onOpen={openNotebook} />
+        <DeskMemorySlip memory={memory} onResume={resumeMemory} compact className="mb-3 rotate-[1deg]" />
+        <MobileShelf notebooks={notebooks} onOpen={openNotebook} memory={memory} />
         <CrossingCue onOpen={() => navigate("/crossing")} className="mt-5 rotate-[-1.5deg]" />
       </main>
     );
@@ -278,7 +337,7 @@ const HomePage = () => {
 
   return (
     <main className="min-h-screen flex items-center justify-center overflow-hidden relative">
-      <DeskScene mx={mouse.mx} my={mouse.my} />
+      <DeskScene mx={mouse.mx} my={mouse.my} memory={memory} />
       <div className="relative w-[min(66vw,300px)] mt-[6vh]" style={{ aspectRatio: "300/460", maxHeight: "48vh", perspective: "1200px" }}>
         {/* desk pad sheet anchoring the stack */}
         <div
@@ -315,6 +374,7 @@ const HomePage = () => {
               }}
             >
               {hasBookmark(nb.slug) && <Ribbon />}
+              {memory.opened[nb.slug] && <WearMarks times={memory.opened[nb.slug].times} />}
               <NotebookCover variant={nb.variant} label={nb.label} coverTitle={nb.cover_title} subtitle={nb.subtitle} />
             </button>
           );
@@ -325,6 +385,11 @@ const HomePage = () => {
         onOpen={() => navigate("/crossing")}
         className="absolute left-1/2 bottom-[6vh] z-30"
         style={{ transform: `translateX(-50%) rotate(-1.5deg) translate(${mouse.mx * -6}px, ${mouse.my * -4}px)` }}
+      />
+      <DeskMemorySlip
+        memory={memory}
+        onResume={resumeMemory}
+        className="absolute right-[6vw] bottom-[16vh] z-30 rotate-[2deg]"
       />
     </main>
   );

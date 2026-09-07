@@ -525,12 +525,17 @@ const JournalBook = ({ char, entries, allEntries, moments, byId, relativeTo, sta
     if (v.kind === "cover" || v.kind === "back") {
       const first = entries[0];
       const lastE = entries[entries.length - 1];
-      const y = (e) => String(e.date_label || "").slice(-4);
+      const y = (e) => (String(e?.date_label || "").match(/\b(?:18|19|20)\d{2}\b/) || [])[0] || null;
+      const firstYear = y(first);
+      const lastYear = y(lastE);
+      const span = firstYear && lastYear
+        ? (firstYear === lastYear ? firstYear : `${firstYear} – ${lastYear}`)
+        : "dates unnumbered";
       return (
         <NotebookCover
           variant={char.variant}
           coverTitle="FIELD LOG"
-          subtitle={[`${y(first)} – ${y(lastE)}`, `${entries.length} entries`]}
+          subtitle={[span, `${entries.length} entries`]}
           label={char.name}
           large
           back={v.kind === "back"}

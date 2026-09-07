@@ -7,6 +7,7 @@ import { getNotebookFull, submitIdea } from "../api";
 import { useSite } from "../context/SiteContext";
 import { readingStats } from "../lib/reading";
 import { saveBookmark, getBookmark } from "../lib/bookmarks";
+import { rememberEntry, rememberNotebook } from "../lib/deskMemory";
 import { playPageFlip } from "../lib/sounds";
 import { Quote, BookOpen, Lightbulb, Send, BookmarkCheck } from "lucide-react";
 
@@ -272,6 +273,14 @@ const NotebookView = () => {
     setClosing(false);
     getNotebookFull(slug).then(setData).catch(() => setError(true));
   }, [slug]);
+
+  useEffect(() => {
+    if (data && data.notebook) rememberNotebook(data.notebook);
+  }, [data]);
+
+  useEffect(() => {
+    if (readerEntry && data && data.notebook) rememberEntry(readerEntry, data.notebook);
+  }, [readerEntry, data]);
 
   const items = useMemo(() => (data ? buildItems(data.entries, slug) : null), [data, slug]);
   const views = useMemo(() => (items ? buildViews(items, isMobile) : null), [items, isMobile]);

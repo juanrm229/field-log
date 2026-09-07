@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { getReadBySlug } from "../api";
 import Reader from "../components/Reader";
 import LoadError from "../components/LoadError";
+import { rememberEntry } from "../lib/deskMemory";
 
 /*
   A piece at its own address: /read/the-cartographer-of-silence
@@ -26,6 +27,10 @@ const ReadPage = () => {
   }, [slug]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (data) rememberEntry(data.entry, data.notebook);
+  }, [data]);
 
   if (failed) {
     return (

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Users, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Network, Table2, Users, X } from "lucide-react";
 import { getSimpang } from "../api";
 import LoadError from "../components/LoadError";
 import NotebookCover from "../components/NotebookCover";
@@ -75,6 +75,215 @@ const Pin = ({ color = "#d3232f", className = "" }) => (
     style={{ background: color, boxShadow: "inset -1px -1px 2px rgba(0,0,0,.35), 0 2px 4px rgba(0,0,0,.35)" }}
     aria-hidden="true" />
 );
+
+const belongsTo = (entry, momentId) =>
+  (entry.moment_ids || (entry.moment_id ? [entry.moment_id] : [])).includes(momentId);
+
+/* A relationship map, not a timeline. The old ledger remains available below,
+   but this is the first view: a reader can pull on a person, a crossing, or a
+   place and see only the threads that explain why it belongs in this town. */
+const ThreadUniverse = ({ characters, moments, entries, byId, onOpenHand, onOpenEntry }) => {
+  const [focus, setFocus] = useState(null); // { type: hand | moment | place, id }
+
+  const orderedMoments = useMemo(
+    () => [...moments].sort((a, b) => (a.t || 0) - (b.t || 0)),
+    [moments]
+  );
+
+  const places = useMemo(() => {
+    const found = new Map();
+    orderedMoments.forEach((m) => {
+      const name = String(m.place || "somewhere unrecorded").trim();
+      if (!found.has(name)) found.set(name, { id: name, name, moments: [] });
+      found.get(name).moments.push(m.id);
+    });
+    return [...found.values()];
+  }, [orderedMoments]);
+
+  const castByMoment = useMemo(() => {
+    const out = {};
+    orderedMoments.forEach((m) => {
+      const ids = [
+        ...(m.character_ids || []),
+        ...entries.filter((e) => belongsTo(e, m.id)).map((e) => e.character_id),
+      ];
+      out[m.id] = [...new Set(ids)].filter((id) => byId[id]);
+    });
+    return out;
+  }, [orderedMoments, entries, byId]);
+
+  const height = Math.max(430, characters.length * 72 + 90, orderedMoments.length * 76 + 90, places.length * 92 + 90);
+  const distribute = (items, top = 78, bottom = 62) => {
+    if (items.length <= 1) return [height / 2];
+    const gap = (height - top - bottom) / (items.length - 1);
+    return items.map((_, i) => top + gap * i);
+  };
+  const handY = Object.fromEntries(characters.map((c, i) => [c.id, distribute(characters)[i]]));
+  const momentY = Object.fromEntries(orderedMoments.map((m, i) => [m.id, distribute(orderedMoments)[i]]));
+  const placeY = Object.fromEntries(places.map((p, i) => [p.id, distribute(places, 92, 72)[i]]));
+
+  const relatedMomentIds = useMemo(() => {
+    if (!focus) return new Set();
+    if (focus.type === "moment") return new Set([focus.id]);
+    if (focus.type === "hand") {
+      return new Set(orderedMoments.filter((m) => (castByMoment[m.id] || []).includes(focus.id)).map((m) => m.id));
+    }
+    return new Set((places.find((p) => p.id === focus.id) || {}).moments || []);
+  }, [focus, orderedMoments, castByMoment, places]);
+
+  const relatedHandIds = useMemo(() => {
+    if (!focus) return new Set();
+    if (focus.type === "hand") return new Set([focus.id]);
+    return new Set([...relatedMomentIds].flatMap((mid) => castByMoment[mid] || []));
+  }, [focus, relatedMomentIds, castByMoment]);
+
+  const relatedPlaceIds = useMemo(() => {
+    if (!focus) return new Set();
+    if (focus.type === "place") return new Set([focus.id]);
+    return new Set(places.filter((p) => p.moments.some((mid) => relatedMomentIds.has(mid))).map((p) => p.id));
+  }, [focus, places, relatedMomentIds]);
+
+  const active = (type, id) => {
+    if (!focus) return true;
+    if (type === "hand") return relatedHandIds.has(id);
+    if (type === "moment") return relatedMomentIds.has(id);
+    return relatedPlaceIds.has(id);
+  };
+
+  const toggleFocus = (type, id) => setFocus((old) => old && old.type === type && old.id === id ? null : { type, id });
+  const onNodeKey = (e, type, id) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleFocus(type, id); }
+  };
+
+  const selected = useMemo(() => {
+    if (!focus) return null;
+    if (focus.type === "hand") {
+      const item = byId[focus.id];
+      const days = entries.filter((e) => e.character_id === focus.id);
+      return item && {
+        eyebrow: "one hand",
+        title: item.name,
+        copy: `${item.role || "witness"} · ${days.length} journal ${days.length === 1 ? "day" : "days"} · ${relatedMomentIds.size} crossings`,
+        action: "open this journal",
+        open: () => onOpenHand(item.id),
+      };
+    }
+    if (focus.type === "moment") {
+      const item = orderedMoments.find((m) => m.id === focus.id);
+      const accounts = entries.filter((e) => belongsTo(e, focus.id));
+      return item && {
+        eyebrow: item.clashes && item.clashes.length ? "accounts disagree here" : "one crossing",
+        title: item.label,
+        copy: `${item.place || "place unrecorded"} · ${accounts.length} ${accounts.length === 1 ? "account" : "accounts"}${item.date_label ? ` · ${item.date_label}` : ""}`,
+        action: accounts.length ? "read the first account" : "no account survived",
+        open: accounts.length ? () => onOpenEntry(accounts[0].id) : null,
+      };
+    }
+    const item = places.find((p) => p.id === focus.id);
+    const firstMoment = item && orderedMoments.find((m) => m.id === item.moments[0]);
+    const accounts = firstMoment ? entries.filter((e) => belongsTo(e, firstMoment.id)) : [];
+    return item && {
+      eyebrow: "one place",
+      title: item.name,
+      copy: `${item.moments.length} ${item.moments.length === 1 ? "crossing" : "crossings"} · ${relatedHandIds.size} hands passed through`,
+      action: accounts.length ? "enter its first crossing" : "nothing was written here",
+      open: accounts.length ? () => onOpenEntry(accounts[0].id) : null,
+    };
+  }, [focus, byId, entries, relatedMomentIds, relatedHandIds, orderedMoments, places, onOpenHand, onOpenEntry]);
+
+  return (
+    <div className="thread-universe map-sheet cream-page overflow-hidden" data-testid="thread-universe">
+      <div className="thread-universe-kicker" aria-hidden="true">
+        <span>hands</span><span>crossings</span><span>places</span>
+      </div>
+      <div className="overflow-x-auto">
+        <svg viewBox={`0 0 920 ${height}`} className="thread-universe-map" role="group" aria-label="People, crossings, and places connected by red thread">
+          <g aria-hidden="true">
+            {orderedMoments.flatMap((m) => (castByMoment[m.id] || []).map((charId) => {
+              const lit = !focus || (relatedMomentIds.has(m.id) && relatedHandIds.has(charId));
+              return (
+                <path key={`${charId}-${m.id}`} className={`red-thread ${lit ? "is-lit" : "is-dim"}`}
+                  d={`M 126 ${handY[charId]} C 235 ${handY[charId]}, 330 ${momentY[m.id]}, 444 ${momentY[m.id]}`} />
+              );
+            }))}
+            {orderedMoments.map((m) => {
+              const place = places.find((p) => p.moments.includes(m.id));
+              if (!place) return null;
+              const lit = !focus || (relatedMomentIds.has(m.id) && relatedPlaceIds.has(place.id));
+              return (
+                <path key={`${m.id}-${place.id}`} className={`red-thread red-thread-place ${lit ? "is-lit" : "is-dim"}`}
+                  d={`M 476 ${momentY[m.id]} C 585 ${momentY[m.id]}, 665 ${placeY[place.id]}, 782 ${placeY[place.id]}`} />
+              );
+            })}
+          </g>
+
+          {characters.map((c) => (
+            <g key={c.id} role="button" tabIndex="0" aria-label={`${c.name}, ${c.role || "witness"}`}
+              onClick={() => toggleFocus("hand", c.id)} onKeyDown={(e) => onNodeKey(e, "hand", c.id)}
+              className={`thread-node ink-${c.variant || "slate"} ${active("hand", c.id) ? "is-active" : "is-dim"}`}>
+              <circle className="thread-node-hit" cx="112" cy={handY[c.id]} r="26" />
+              <circle className="thread-hand-dot" cx="112" cy={handY[c.id]} r={focus?.type === "hand" && focus.id === c.id ? 10 : 7} />
+              <text className="thread-hand-name" x="94" y={handY[c.id] + 4} textAnchor="end">{c.name.toUpperCase()}</text>
+              <text className="thread-node-meta" x="94" y={handY[c.id] + 17} textAnchor="end">{c.role || "WITNESS"}</text>
+            </g>
+          ))}
+
+          {orderedMoments.map((m) => {
+            const contested = m.clashes && m.clashes.length > 0;
+            return (
+              <g key={m.id} role="button" tabIndex="0" aria-label={`${m.label}, ${m.place}`}
+                onClick={() => toggleFocus("moment", m.id)} onKeyDown={(e) => onNodeKey(e, "moment", m.id)}
+                className={`thread-node thread-moment-node ${active("moment", m.id) ? "is-active" : "is-dim"}`}>
+                <circle className="thread-node-hit" cx="460" cy={momentY[m.id]} r="27" />
+                <circle className={contested ? "thread-knot thread-knot-clash" : "thread-knot"} cx="460" cy={momentY[m.id]} r={focus?.type === "moment" && focus.id === m.id ? 11 : 8} />
+                <text className="thread-moment-name" x="460" y={momentY[m.id] - 17} textAnchor="middle">{m.label}</text>
+                {contested && <text className="thread-clash-mark" x="460" y={momentY[m.id] + 4} textAnchor="middle">!</text>}
+              </g>
+            );
+          })}
+
+          {places.map((p) => (
+            <g key={p.id} role="button" tabIndex="0" aria-label={`${p.name}, ${p.moments.length} crossings`}
+              onClick={() => toggleFocus("place", p.id)} onKeyDown={(e) => onNodeKey(e, "place", p.id)}
+              className={`thread-node thread-place-node ${active("place", p.id) ? "is-active" : "is-dim"}`}>
+              <circle className="thread-node-hit" cx="798" cy={placeY[p.id]} r="27" />
+              <rect className="thread-place-pin" x="791" y={placeY[p.id] - 7} width="14" height="14" rx="2"
+                transform={`rotate(45 798 ${placeY[p.id]})`} />
+              <text className="thread-place-name" x="819" y={placeY[p.id] + 4}>{p.name}</text>
+              <text className="thread-node-meta" x="819" y={placeY[p.id] + 17}>{p.moments.length} CROSSING{p.moments.length === 1 ? "" : "S"}</text>
+            </g>
+          ))}
+        </svg>
+      </div>
+      <p className="thread-pan-hint" aria-hidden="true">drag sideways to see the whole town →</p>
+
+      <div className="thread-inspector" aria-live="polite">
+        {selected ? (
+          <>
+            <div className="min-w-0">
+              <p className="font-mono-ui text-[8px] tracking-[0.25em] uppercase text-[#a4243b]">{selected.eyebrow}</p>
+              <p className="thread-inspector-title font-hand text-[21px] leading-tight truncate">{selected.title}</p>
+              <p className="thread-inspector-copy font-mono-ui text-[8.5px] tracking-[0.08em] uppercase mt-1">{selected.copy}</p>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              {selected.open && (
+                <button type="button" onClick={selected.open} className="thread-enter font-hand">
+                  {selected.action} →
+                </button>
+              )}
+              <button type="button" onClick={() => setFocus(null)} aria-label="Release this thread" className="thread-release"><X size={14} /></button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="font-hand text-[17px] text-[#6e6659]">pull a name, a knot, or a place — the rest of the town will fall away</p>
+            <p className="font-mono-ui text-[8px] tracking-[0.18em] uppercase text-[#9b9387] shrink-0">a knot marked ! contains conflicting accounts</p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
 
 /* What the reader has dug out, stacked in story order rather than reading
    order. A time capsule needs a table to lay the papers on; the gaps between
@@ -253,6 +462,7 @@ const SimpangPage = () => {
   const [turn, setTurn] = useState(null);
   const [solo, setSolo] = useState(null);
   const [hover, setHover] = useState(null);
+  const [recordView, setRecordView] = useState("threads");
 
   const load = useCallback(() => {
     setFailed(false);
@@ -338,7 +548,8 @@ const SimpangPage = () => {
     if (!mine.length) return null;
     const from = yearOf(mine[0].date_label);
     const to = yearOf(mine[mine.length - 1].date_label);
-    return { char: c, entries: mine, count: mine.length, years: from === to ? `${from}` : `${from} – ${to}` };
+    const range = from && to ? (from === to ? `${from}` : `${from} – ${to}`) : "dates unnumbered";
+    return { char: c, entries: mine, count: mine.length, years: range };
   }).filter(Boolean), [characters, entries]);
 
   const openChar = byId[openCharId] || null;
@@ -465,7 +676,7 @@ const SimpangPage = () => {
           {characters.length > 0 && (
             <div className="text-center mb-9" data-testid="simpang-preamble">
               <p className="font-mono-ui text-[10px] tracking-[0.32em] uppercase text-neutral-400">
-                {characters.length} people · {years.length} years · one town
+                {characters.length} people · {years.length ? `${years.length} years` : "dates unnumbered"} · one town
               </p>
               <p className="font-hand text-[20px] text-neutral-500 dark:text-neutral-400 mt-1.5 leading-snug">
                 none of them read anyone else&rsquo;s.<br />
@@ -501,27 +712,44 @@ const SimpangPage = () => {
                 <div>
                   <p className="font-mono-ui text-[10px] tracking-[0.3em] uppercase text-[#f94b0c]">The whole record</p>
                   <p className="font-hand text-[16px] text-neutral-400">
-                    a row for each person, a column for each year — every mark is a day they wrote
+                    {recordView === "threads"
+                      ? "pull one thread and the shape of the town reveals itself"
+                      : "a row for each person, a column for each year — every mark is a day they wrote"}
                   </p>
                 </div>
-                <span className="font-mono-ui text-[9px] tracking-[0.16em] uppercase text-neutral-400">
-                  {entries.length} entries
-                </span>
-              </div>
-              <div className="cork-frame">
-                <div className="cork-board relative px-3 sm:px-6 pt-8 pb-6" data-testid="simpang-board">
-                  <Ledger
-                    characters={characters} years={years} grid={grid}
-                    solo={solo} cell={cell}
-                    onPick={openCell} onHover={setHover}
-                  />
-                  <p className="font-hand text-[15px] text-[#fffdf6]/85 mt-2 px-1 -rotate-1 drop-shadow-sm">
-                    {hover
-                      ? `${byId[hover.charId]?.name} · ${hover.year} · ${hover.count} entr${hover.count === 1 ? "y" : "ies"}`
-                      : "open a square to read that person's year"}
-                  </p>
+                <div className="record-switch" role="group" aria-label="Record view">
+                  <button type="button" onClick={() => setRecordView("threads")} aria-pressed={recordView === "threads"}
+                    className={recordView === "threads" ? "is-active" : ""}><Network size={12} /> Threads</button>
+                  <button type="button" onClick={() => setRecordView("ledger")} aria-pressed={recordView === "ledger"}
+                    className={recordView === "ledger" ? "is-active" : ""}><Table2 size={12} /> Ledger</button>
                 </div>
               </div>
+              {recordView === "threads" ? (
+                <ThreadUniverse characters={characters} moments={moments} entries={entries} byId={byId}
+                  onOpenHand={openHand} onOpenEntry={openEntry} />
+              ) : (
+                <div className="cork-frame">
+                  <div className="cork-board relative px-3 sm:px-6 pt-8 pb-6" data-testid="simpang-board">
+                    {years.length ? (
+                      <Ledger
+                        characters={characters} years={years} grid={grid}
+                        solo={solo} cell={cell}
+                        onPick={openCell} onHover={setHover}
+                      />
+                    ) : (
+                      <div className="map-sheet cream-page py-10 px-6 text-center">
+                        <p className="font-hand text-[18px] text-neutral-500">These pages remember distance, not calendar years.</p>
+                        <p className="font-mono-ui text-[8.5px] tracking-[0.16em] uppercase text-neutral-400 mt-2">use the red threads to enter them</p>
+                      </div>
+                    )}
+                    <p className="font-hand text-[15px] text-[#fffdf6]/85 mt-2 px-1 -rotate-1 drop-shadow-sm">
+                      {hover
+                        ? `${byId[hover.charId]?.name} · ${hover.year} · ${hover.count} entr${hover.count === 1 ? "y" : "ies"}`
+                        : `${entries.length} entries in the record`}
+                    </p>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </>
