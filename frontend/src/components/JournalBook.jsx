@@ -534,7 +534,7 @@ const JournalBook = ({ char, entries, allEntries, moments, byId, relativeTo, sta
       return (
         <NotebookCover
           variant={char.variant}
-          coverTitle="FIELD LOG"
+          coverTitle="KODARCHIVE"
           subtitle={[span, `${entries.length} entries`]}
           label={char.name}
           large

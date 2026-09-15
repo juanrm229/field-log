@@ -53,13 +53,11 @@ const Header = ({ theme, setTheme }) => {
             onMouseEnter={() => setLogoHover(true)}
             onMouseLeave={() => setLogoHover(false)}
             onClick={() => navigate("/")}
-            className="pill h-9 px-4 flex items-center justify-center select-none min-w-[92px]"
+            aria-label="Kodarchive — beranda"
+            className="pill h-9 px-3 flex items-center justify-center gap-2 select-none"
           >
-            {logoHover ? (
-              <span className="font-logo text-[17px] leading-none holo-text">{OWNER.alias}</span>
-            ) : (
-              <span className="font-logo text-[17px] leading-none text-neutral-900 dark:text-neutral-100">Juan</span>
-            )}
+            <img src="/favicon.svg" width="24" height="24" alt="" />
+            <span className={`hidden min-[380px]:inline font-cover text-[12px] tracking-tight ${logoHover ? 'holo-text' : 'text-neutral-900 dark:text-neutral-100'}`}>Kodarchive</span>
           </button>
           <div
             className={`absolute left-0 top-11 w-60 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 shadow-lg px-4 py-3 transition-all duration-300 origin-top-left ${

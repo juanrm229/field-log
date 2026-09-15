@@ -3,6 +3,7 @@ import "./App.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import BlueprintBackground from "./components/BlueprintBackground";
 import Header from "./components/Header";
+import RouteSEO from "./components/RouteSEO";
 import HomePage from "./pages/HomePage";
 
 // The desk is the landing page and stays in the main bundle. Everything else is
@@ -69,6 +70,7 @@ function App() {
   return (
     <div className="App min-h-screen font-ui">
       <BrowserRouter>
+        <RouteSEO />
         <SiteProvider>
         <NotebooksProvider>
           <BlueprintBackground />

@@ -156,7 +156,7 @@ class SiteSettings(BaseModel):
     inside-cover page. Stored as one document so the owner can change any of it
     from Studio without a deploy."""
     # identity
-    site_name: str = "Commonplace Book"
+    site_name: str = "Kodarchive"
     site_tagline: str = "stories, poems & things kind people said"
     description: str = ""
     owner_name: str = "Juan"

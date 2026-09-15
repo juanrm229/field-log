@@ -11,7 +11,7 @@ import { getSite } from "../api";
   backend is asleep.
 */
 const FALLBACK = {
-  site_name: "Commonplace Book",
+  site_name: "Kodarchive",
   site_tagline: "stories, poems & things kind people said",
   description: "",
   owner_name: "",

@@ -1,13 +1,13 @@
 {
-  "name": "Juan Maulana — Commonplace Book",
-  "short_name": "Commonplace",
+  "name": "Kodarchive — Cerita, Puisi & Jurnal",
+  "short_name": "Kodarchive",
   "description": "Novels, short stories, poetry and journals, kept in one place.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0d0d0d",
-  "theme_color": "#f94b0c",
+  "theme_color": "#171815",
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

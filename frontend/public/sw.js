@@ -16,7 +16,7 @@
   a waking server is still in flight.
 */
 
-const VERSION = "v2-supabase";
+const VERSION = "v3-kodarchive";
 const SHELL = `shell-${VERSION}`;
 const CONTENT = `content-${VERSION}`;
 

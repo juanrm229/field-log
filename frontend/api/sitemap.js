@@ -10,6 +10,7 @@
 const STATIC_PATHS = [
   { path: "/", priority: "1.0" },
   { path: "/archive", priority: "0.7" },
+  { path: "/crossing", priority: "0.8" },
   { path: "/wall", priority: "0.5" },
   { path: "/now-writing", priority: "0.5" },
 ];
@@ -18,23 +19,28 @@ const xmlEscape = (s) =>
   String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 export default async function handler(req, res) {
-  const origin = `https://${req.headers["x-forwarded-host"] || req.headers.host}`;
+  const origin = 'https://www.kodarchive.ink';
   const BACKEND = origin;
   const urls = STATIC_PATHS.map((p) => ({ loc: origin + p.path, priority: p.priority }));
 
   if (BACKEND) {
     try {
-      const notebooks = await fetch(`${BACKEND}/api/notebooks`).then((r) => r.json());
+      const read = async (url) => {
+        const r = await fetch(url, {signal:AbortSignal.timeout(8000)});
+        if (!r.ok) throw new Error('Sitemap API unavailable');
+        return r.json();
+      };
+      const notebooks = await read(`${BACKEND}/api/notebooks`);
 
-      for (const nb of notebooks) {
-        urls.push({ loc: `${origin}/notebook/${nb.slug}`, priority: "0.9" });
+      await Promise.all(notebooks.map(async (nb) => {
+        urls.push({ loc: `${origin}/notebook/${encodeURIComponent(nb.slug)}`, priority: "0.9" });
 
-        const full = await fetch(`${BACKEND}/api/notebooks/${nb.slug}/full`).then((r) => r.json());
+        const full = await read(`${BACKEND}/api/notebooks/${encodeURIComponent(nb.slug)}/full`);
         for (const entry of full.entries || []) {
-          if (entry.type !== "piece" || !entry.slug) continue;
-          urls.push({ loc: `${origin}/read/${entry.slug}`, priority: "0.8" });
+          if (entry.draft || entry.type !== "piece" || !entry.slug) continue;
+          urls.push({ loc: `${origin}/read/${encodeURIComponent(entry.slug)}`, priority: "0.8" });
         }
-      }
+      }));
     } catch (e) {
       // A sitemap listing the fixed pages is far better than a 500. The backend
       // sleeps when idle, and a crawler arriving mid-wake should not be told the
