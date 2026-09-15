@@ -1,22 +1,33 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Header, UploadFile, File
-from fastapi.responses import Response
+from fastapi.responses import Response, RedirectResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
+try:
+    from .store import db, request as storage_request
+except ImportError:
+    from store import db, request as storage_request
 import os
 import re
 import asyncio
 import logging
 import resend
-from bson import ObjectId
+import hmac
+import hashlib
+import json
+import time
+from urllib.parse import quote
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional
 import uuid
 from datetime import datetime, timezone
 
-from seed_data import DEFAULT_NOTEBOOKS
-from simpang_sample import SAMPLE_CHARACTERS, SAMPLE_MOMENTS
+try:
+    from .seed_data import DEFAULT_NOTEBOOKS
+    from .simpang_sample import SAMPLE_CHARACTERS, SAMPLE_MOMENTS
+except ImportError:
+    from seed_data import DEFAULT_NOTEBOOKS
+    from simpang_sample import SAMPLE_CHARACTERS, SAMPLE_MOMENTS
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -31,9 +42,6 @@ def required_env(name: str) -> str:
         )
     return value
 
-
-client = AsyncIOMotorClient(required_env("MONGO_URL"))
-db = client[required_env("DB_NAME")]
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -51,13 +59,12 @@ SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
 
 EMAIL_RX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
-# ---------- Audio storage (background music, stored in MongoDB GridFS) ----------
-music_bucket = AsyncIOMotorGridFSBucket(db, bucket_name="music")
-_music_cache = {}
+# Audio bytes live in Supabase Storage; only metadata lives in PostgreSQL.
+MUSIC_BUCKET = "field-log-music"
 
 
 def require_studio_key(x_studio_key: Optional[str]):
-    if x_studio_key != STUDIO_PASSWORD:
+    if not hmac.compare_digest(x_studio_key or "", STUDIO_PASSWORD):
         raise HTTPException(status_code=401, detail="invalid studio key")
 
 
@@ -449,7 +456,7 @@ async def list_notebooks():
 
 @api_router.post("/studio/auth")
 async def studio_auth(payload: StudioAuth):
-    if payload.password != STUDIO_PASSWORD:
+    if not hmac.compare_digest(payload.password, STUDIO_PASSWORD):
         raise HTTPException(status_code=401, detail="wrong password")
     return {"ok": True}
 
@@ -538,7 +545,7 @@ async def update_site(payload: SiteSettings, x_studio_key: Optional[str] = Heade
 @api_router.get("/read/{slug}")
 async def read_by_slug(slug: str):
     """One piece and the notebook it belongs to, addressed by its own name."""
-    entry = await db.entries.find_one({"slug": slug})
+    entry = await db.entries.find_one({"slug": slug, "draft": {"$ne": True}})
     if not entry:
         raise HTTPException(status_code=404, detail="piece not found")
     nb = await db.notebooks.find_one({"id": entry["notebook_id"]})
@@ -969,11 +976,11 @@ def audio_content_type(filename: str, declared: str) -> str:
 
 
 async def drop_music_file(doc):
-    """Remove a GridFS audio file that is no longer referenced. Missing files are fine."""
-    if not doc or not doc.get("gridfs_id"):
+    """Delete the replaced object only after new metadata has been saved."""
+    if not doc or not doc.get("storage_path"):
         return
     try:
-        await music_bucket.delete(ObjectId(doc["gridfs_id"]))
+        await storage_request("DELETE", f"/storage/v1/object/{MUSIC_BUCKET}", json={"prefixes": [doc["storage_path"]]})
     except Exception as e:
         logger.warning(f"could not delete old music file: {e}")
 
@@ -989,25 +996,59 @@ async def get_music():
 @api_router.post("/music")
 async def upload_music(file: UploadFile = File(...), x_studio_key: Optional[str] = Header(None)):
     require_studio_key(x_studio_key)
-    ct = file.content_type or ""
-    name = file.filename or ""
-    if not ct.startswith("audio/") and not name.lower().endswith(AUDIO_EXTS):
-        raise HTTPException(status_code=400, detail="file must be an audio file (mp3, m4a, ogg, wav)")
-    data = await file.read()
-    if len(data) > 20 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="audio file too large (max 20MB)")
-    content_type = audio_content_type(name, ct)
+    raise HTTPException(400, "Use the direct Storage upload flow; refresh Studio")
+
+
+class MusicUploadRequest(BaseModel):
+    filename: str = Field(min_length=1, max_length=200)
+    size: int = Field(gt=0, le=20 * 1024 * 1024)
+    content_type: str = "audio/mpeg"
+
+
+class MusicComplete(BaseModel):
+    receipt: str = Field(max_length=3000)
+    signature: str = Field(max_length=64)
+
+
+@api_router.post("/music/upload-url")
+async def music_upload_url(payload: MusicUploadRequest, x_studio_key: Optional[str] = Header(None)):
+    require_studio_key(x_studio_key)
+    if not payload.filename.lower().endswith(AUDIO_EXTS):
+        raise HTTPException(400, "Select an audio file")
+    content_type = AUDIO_TYPES[payload.filename.rsplit('.', 1)[-1].lower()]
+    path = f"tracks/{uuid.uuid4()}.{payload.filename.rsplit('.', 1)[-1].lower()}"
+    result = await storage_request("POST", f"/storage/v1/object/upload/sign/{MUSIC_BUCKET}/{path}", json={})
+    signed = result.json()["url"]
+    if not signed.startswith("https://"):
+        signed = os.environ["SUPABASE_URL"].rstrip("/") + "/storage/v1" + signed
+    receipt = json.dumps({"storage_path": path, "filename": payload.filename,
+        "content_type": content_type, "size": payload.size, "expires": int(time.time()) + 7200}, separators=(',', ':'))
+    signature = hmac.new(STUDIO_PASSWORD.encode(), receipt.encode(), hashlib.sha256).hexdigest()
+    return {"upload_url": signed, "receipt": receipt, "signature": signature, "content_type": content_type}
+
+
+@api_router.post("/music/complete")
+async def music_complete(payload: MusicComplete, x_studio_key: Optional[str] = Header(None)):
+    require_studio_key(x_studio_key)
+    expected = hmac.new(STUDIO_PASSWORD.encode(), payload.receipt.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, payload.signature):
+        raise HTTPException(400, "Invalid upload receipt")
+    data = json.loads(payload.receipt)
+    if data["expires"] < time.time():
+        raise HTTPException(400, "Upload expired; please upload again")
+    # Inspect object metadata without transferring the audio through Vercel.
+    info = (await storage_request("GET", f"/storage/v1/object/info/{MUSIC_BUCKET}/{data['storage_path']}")).json()
+    metadata = info.get("metadata", {})
+    actual_size = info.get("size", metadata.get("size"))
+    if actual_size is None or int(actual_size) != data["size"]:
+        raise HTTPException(400, "Uploaded file size does not match")
     previous = await db.settings.find_one({"_id": "music"})
-    file_id = await music_bucket.upload_from_stream(name or "music", data, metadata={"content_type": content_type})
-    await db.settings.update_one(
-        {"_id": "music"},
-        {"$set": {"gridfs_id": str(file_id), "filename": name, "content_type": content_type,
-                  "updated_at": datetime.now(timezone.utc).isoformat()}},
-        upsert=True,
-    )
-    await drop_music_file(previous)
-    _music_cache.clear()
-    return {"ok": True, "filename": name}
+    saved = {k: data[k] for k in ("storage_path", "filename", "content_type")}
+    saved["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.settings.update_one({"_id": "music"}, {"$set": saved}, upsert=True)
+    if not previous or previous.get("storage_path") != saved["storage_path"]:
+        await drop_music_file(previous)
+    return {"ok": True, "filename": saved["filename"]}
 
 
 @api_router.get("/music/stream")
@@ -1015,16 +1056,14 @@ async def stream_music():
     doc = await db.settings.find_one({"_id": "music"})
     if not doc:
         raise HTTPException(status_code=404, detail="no music uploaded")
-    file_id = doc.get("gridfs_id")
-    if not file_id:
+    path = doc.get("storage_path")
+    if not path:
         raise HTTPException(status_code=404, detail="no music uploaded")
-    if file_id not in _music_cache:
-        stream = await music_bucket.open_download_stream(ObjectId(file_id))
-        data = await stream.read()
-        _music_cache.clear()
-        _music_cache[file_id] = (data, doc.get("content_type") or "audio/mpeg")
-    data, ct = _music_cache[file_id]
-    return Response(content=data, media_type=ct, headers={"Cache-Control": "public, max-age=3600", "Accept-Ranges": "bytes"})
+    result = (await storage_request("POST", f"/storage/v1/object/sign/{MUSIC_BUCKET}/{quote(path, safe='/')}", json={"expiresIn": 3600})).json()
+    url = result["signedURL"]
+    if not url.startswith("https://"):
+        url = os.environ["SUPABASE_URL"].rstrip("/") + "/storage/v1" + url
+    return RedirectResponse(url, status_code=307, headers={"Cache-Control": "no-store"})
 
 
 @api_router.delete("/music")
@@ -1032,7 +1071,6 @@ async def delete_music(x_studio_key: Optional[str] = Header(None)):
     require_studio_key(x_studio_key)
     doc = await db.settings.find_one({"_id": "music"})
     result = await db.settings.delete_one({"_id": "music"})
-    _music_cache.clear()
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="no music to delete")
     await drop_music_file(doc)
@@ -1293,6 +1331,8 @@ logger = logging.getLogger(__name__)
 
 @app.on_event("startup")
 async def seed_if_empty():
+    if os.environ.get("SEED_SAMPLE_DATA") != "true":
+        return
     count = await db.notebooks.count_documents({})
     if count > 0:
         return
@@ -1311,6 +1351,8 @@ async def seed_if_empty():
 async def backfill_entry_slugs():
     """Entries written before slugs existed still need an address. Runs on every
     boot and does nothing once they all have one."""
+    if os.environ.get("RUN_SLUG_BACKFILL") != "true":
+        return
     missing = await db.entries.find({"$or": [{"slug": {"$exists": False}}, {"slug": ""}]}).to_list(None)
     if not missing:
         return
@@ -1318,8 +1360,3 @@ async def backfill_entry_slugs():
         slug = await unique_entry_slug(e.get("title", ""), "", e["id"])
         await db.entries.update_one({"id": e["id"]}, {"$set": {"slug": slug}})
     logger.info(f"Assigned slugs to {len(missing)} entries")
-
-
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()

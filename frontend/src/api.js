@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const BACKEND_URL = process.env.NODE_ENV === "production" ? "" : (process.env.REACT_APP_BACKEND_URL || "").replace(/\/$/, "");
 const API = `${BACKEND_URL}/api`;
 
 // ---- studio key (owner password) ----
@@ -91,8 +91,13 @@ export const getArchive = async () => (await axios.get(`${API}/archive`)).data;
 export const MUSIC_STREAM_URL = `${API}/music/stream`;
 export const getMusic = async () => (await axios.get(`${API}/music`)).data;
 export const uploadMusic = async (file) => {
-  const fd = new FormData();
-  fd.append("file", file);
-  return (await axios.post(`${API}/music`, fd, { headers: { "X-Studio-Key": studioKey } })).data;
+  if (!file.size || file.size > 20 * 1024 * 1024) throw new Error("Choose an audio file up to 20 MB");
+  const ticket = (await axios.post(`${API}/music/upload-url`, {
+    filename: file.name, size: file.size, content_type: file.type || "audio/mpeg",
+  }, auth())).data;
+  await axios.put(ticket.upload_url, file, { headers: { "Content-Type": ticket.content_type } });
+  return (await axios.post(`${API}/music/complete`, {
+    receipt: ticket.receipt, signature: ticket.signature,
+  }, auth())).data;
 };
 export const deleteMusic = async () => (await axios.delete(`${API}/music`, auth())).data;

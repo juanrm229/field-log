@@ -1,0 +1,23 @@
+// Run after npm install --prefix .qa --no-save @electric-sql/pglite@0.3.14
+import { PGlite } from '../../.qa/node_modules/@electric-sql/pglite/dist/index.js';
+import { readFileSync } from 'node:fs';
+import assert from 'node:assert/strict';
+const pg = new PGlite();
+await pg.exec(`create role anon; create role authenticated; create role service_role;
+  create schema storage;
+  create table storage.buckets (id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);`);
+await pg.exec(readFileSync(new URL('../../supabase/migrations/001_field_log.sql', import.meta.url), 'utf8'));
+await pg.query(`select field_log_patch('reactions','entry-1',$1,$2)`, [JSON.stringify({'$inc': {'counts.heart': 1}}), JSON.stringify({entry_id:'entry-1'})]);
+await Promise.all(Array.from({length:20}, () => pg.query(`select field_log_patch('reactions','entry-1',$1,$2)`, [JSON.stringify({'$inc': {'counts.heart': 1}}), JSON.stringify({entry_id:'entry-1'})])));
+assert.equal((await pg.query(`select document from field_log_records where record_key='entry-1'`)).rows[0].document.counts.heart, 21);
+await pg.query(`select field_log_patch('moments','m1',$1,$2)`, [JSON.stringify({'$set': {character_ids:['a','b'],title:'kept'}}), '{}']);
+await pg.query(`select field_log_patch('moments','m1',$1)`, [JSON.stringify({'$pull': {character_ids:'a'}, '$set':{note:'new'}})]);
+const doc = (await pg.query(`select document from field_log_records where record_key='m1'`)).rows[0].document;
+assert.deepEqual(doc.character_ids, ['b']); assert.equal(doc.title,'kept'); assert.equal(doc.note,'new');
+await pg.exec('set role anon');
+await assert.rejects(pg.query('select * from field_log_records'), /permission denied/);
+await assert.rejects(pg.query(`select field_log_patch('moments','m1','{}')`), /permission denied/);
+await pg.exec('reset role');
+await pg.exec(readFileSync(new URL('../../supabase/migrations/001_field_log.sql', import.meta.url), 'utf8'));
+console.log('PASS: migration, rerun, increments, field merge, array removal, anonymous access denied');
+await pg.close();

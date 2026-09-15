@@ -35,8 +35,8 @@ export default async function middleware(request) {
   const ua = request.headers.get("user-agent") || "";
   if (!CRAWLER.test(ua)) return; // hand it back to the CDN
 
-  const backend = process.env.REACT_APP_BACKEND_URL;
   const url = new URL(request.url);
+  const backend = url.origin;
   const [, section, slug] = url.pathname.split("/");
   if (!backend || !slug) return;
 

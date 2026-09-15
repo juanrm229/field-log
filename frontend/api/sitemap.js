@@ -6,7 +6,6 @@
   Served at /sitemap.xml via the rewrite in vercel.json.
 */
 
-const BACKEND = process.env.REACT_APP_BACKEND_URL;
 
 const STATIC_PATHS = [
   { path: "/", priority: "1.0" },
@@ -20,6 +19,7 @@ const xmlEscape = (s) =>
 
 export default async function handler(req, res) {
   const origin = `https://${req.headers["x-forwarded-host"] || req.headers.host}`;
+  const BACKEND = origin;
   const urls = STATIC_PATHS.map((p) => ({ loc: origin + p.path, priority: p.priority }));
 
   if (BACKEND) {

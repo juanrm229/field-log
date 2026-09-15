@@ -16,7 +16,7 @@
   a waking server is still in flight.
 */
 
-const VERSION = "v1";
+const VERSION = "v2-supabase";
 const SHELL = `shell-${VERSION}`;
 const CONTENT = `content-${VERSION}`;
 
@@ -47,6 +47,8 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
 
   const url = new URL(request.url);
+  // Owner-only responses must never enter the shared offline cache.
+  if (request.headers.has("X-Studio-Key") || url.pathname.startsWith("/api/music")) return;
 
   // The writing: network first, cache as the safety net.
   if (isApiRequest(url)) {

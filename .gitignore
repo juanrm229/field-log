@@ -92,3 +92,7 @@ credentials.json
 # Keep the committed templates (the rules above would otherwise hide them)
 !.env.example
 !**/.env.example
+!backend/.env.supabase.example
+frontend/.corepack/
+private-exports/
+.qa/

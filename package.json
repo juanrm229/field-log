@@ -1,0 +1,9 @@
+{
+  "name": "field-log-deployment",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "yarn --cwd frontend build"
+  },
+  "packageManager": "yarn@1.22.22"
+}

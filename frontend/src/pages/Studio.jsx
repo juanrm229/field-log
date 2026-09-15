@@ -49,10 +49,10 @@ const StudioGate = ({ onUnlock }) => {
       await studioAuth(password);
       setStudioKey(password);
       onUnlock();
-    } catch {
+    } catch (error) {
       setShake(true);
       setTimeout(() => setShake(false), 500);
-      toast.error("Wrong password");
+      toast.error(error.response?.status === 401 ? "Wrong password" : "Studio could not connect. Please try again.");
     } finally {
       setChecking(false);
     }
