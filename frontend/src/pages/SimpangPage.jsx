@@ -658,11 +658,11 @@ const SimpangPage = () => {
   const flipClass = turn === "next" ? "page-flip-next" : turn === "prev" ? "page-flip-prev" : "";
 
   return (
-    <main className="min-h-screen pt-24 pb-20 px-4 sm:px-8 max-w-5xl mx-auto">
+    <main className={`crossing-main ${openChar ? 'crossing-main-reading' : ''} min-h-screen pt-24 pb-20 px-4 sm:px-8 max-w-5xl mx-auto`}>
       {/* The taped label used to hang over the cork frame, so it carried a
           negative margin. The frame moved to the foot of the page and the
           margin stayed, dragging the label down onto the opening lines. */}
-      <div className="relative z-20 flex justify-center mb-7">
+      <div className="crossing-title relative z-20 flex justify-center mb-7">
         <div className="relative bg-[#fffdf6] dark:bg-neutral-900 dark:border dark:border-neutral-700 shadow-lg px-8 py-2.5 rotate-[-1.5deg] note-drop">
           <span className="absolute -top-2 -left-4 w-10 h-4 bg-[#c3dcef]/70 dark:bg-[#c3dcef]/30 rotate-[-30deg]" />
           <span className="absolute -top-2 -right-4 w-10 h-4 bg-[#f8e8a0]/80 dark:bg-[#f8e8a0]/30 rotate-[30deg]" />
@@ -754,8 +754,8 @@ const SimpangPage = () => {
           )}
         </>
       ) : (
-        <section data-testid="simpang-reading">
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <section className="crossing-reading" data-testid="simpang-reading">
+          <div className="crossing-reading-toolbar flex flex-wrap items-center justify-between gap-3 mb-5">
             <button onClick={closeBook} data-testid="simpang-close-book"
               className="pill h-8 px-3.5 flex items-center gap-1.5 text-[11px] font-mono-ui tracking-[0.1em] uppercase text-neutral-700 dark:text-neutral-200">
               <ChevronLeft size={13} /> Back to the desk
@@ -778,6 +778,8 @@ const SimpangPage = () => {
             onOpenEntry={openEntry}
           />
 
+          <details className="crossing-reading-trails">
+            <summary>Jejak bacaan</summary>
           {sharedDays.length > 1 && <Trail
             shared dugDays={sharedDays} byId={byId} entries={entries}
             openEntryId={openEntryId} onOpen={openEntry}
@@ -787,6 +789,7 @@ const SimpangPage = () => {
             dugDays={dugDays} byId={byId} entries={entries}
             openEntryId={openEntryId} onOpen={openEntry} onClear={clearTrail}
             onCopy={copyTrail} copied={copied} />}
+          </details>
         </section>
       )}
 

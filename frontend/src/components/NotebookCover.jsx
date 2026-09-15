@@ -212,9 +212,7 @@ const NotebookCover = ({ variant = "orange", label, subtitle = [], coverTitle = 
   // so the type has to come down as the longest word grows.
   const longestWord = titleText.split("\n").reduce((m, w) => Math.max(m, w.length), 1);
   const fit = Math.min(1, 5.5 / longestWord);
-  const titleStyle = large
-    ? { fontSize: `clamp(${Math.round(28 * fit)}px, ${(4.6 * fit).toFixed(2)}vh, ${Math.round(44 * fit)}px)` }
-    : { fontSize: `clamp(${Math.round(13 * fit)}px, ${(14 * fit).toFixed(2)}cqw, ${Math.round(30 * fit)}px)` };
+  const titleStyle = { fontSize: `clamp(9px, ${(14 * fit).toFixed(2)}cqw, ${Math.round((large ? 44 : 30) * fit)}px)`, overflowWrap: 'anywhere', maxWidth: '100%' };
   // The back cover prints it on one line, with wider tracking still.
   const backFit = Math.min(1, 9 / (coverTitle || "COMMONPLACE BOOK").length);
   const backTitleStyle = large
@@ -266,7 +264,7 @@ const NotebookCover = ({ variant = "orange", label, subtitle = [], coverTitle = 
       <div className="absolute left-[5%] top-0 bottom-0 w-px bg-black/10" />
 
       {/* cover print */}
-      <div className="absolute inset-0 flex flex-col items-center pt-[13%] px-[10%]">
+      <div className="cover-print absolute inset-0 flex flex-col items-center pt-[13%] px-[10%]">
         <h2 style={titleStyle} className={`font-cover ${s.title} ${large ? "text-[clamp(28px,4.6vh,44px)]" : "cover-title text-[clamp(15px,2.6vw,26px)]"} leading-[1.05] tracking-[0.22em] text-center whitespace-pre-line`}>
           {titleText}
         </h2>
@@ -280,7 +278,7 @@ const NotebookCover = ({ variant = "orange", label, subtitle = [], coverTitle = 
       </div>
 
       {/* handwritten label */}
-      <p className={`absolute bottom-[4.5%] left-0 right-0 text-center font-hand ${s.label} ${large ? "text-[22px]" : "cover-label text-[clamp(10px,1.6vw,16px)]"}`}>
+      <p className={`cover-name absolute bottom-[4.5%] left-[8%] right-[8%] text-center font-hand ${s.label} ${large ? "text-[22px]" : "cover-label text-[clamp(10px,1.6vw,16px)]"}`}>
         {label}
       </p>
 

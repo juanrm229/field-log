@@ -1,4 +1,49 @@
-/* ---- Juan Maulana / Koda — Field Log writing showcase ---- */
+/* ---- Kodarchive writing showcase ---- */
+
+/* Covers reserve separate areas for the imprint and the handwritten name. */
+.notebook-cover .cover-print { bottom: 22%; overflow-y: auto; overflow-wrap: anywhere; }
+.notebook-cover .cover-print > * { flex-shrink: 0; max-width: 100%; }
+.notebook-cover .cover-name { overflow-wrap: anywhere; line-height: 1.15; max-height: 18%; overflow-y: auto; }
+.notebook-cover-back > .absolute.flex { overflow-y: auto; gap: 12px; overflow-wrap: anywhere; }
+.notebook-cover-back > .absolute.flex > * { flex-shrink: 0; max-width: 100%; }
+.journal-leaf { overscroll-behavior: contain; overflow-wrap: anywhere; }
+.journal-leaf > header, .journal-leaf p { flex-shrink: 0; }
+.crossing-reading-trails { margin-top: 12px; font-size: 12px; }
+.crossing-reading-trails > summary { cursor: pointer; padding: 8px; }
+
+@media (max-width: 767px) {
+  body:has(.crossing-main-reading) { --footnote-h: 48px; }
+  body:has(.crossing-main-reading) [data-testid="music-toggle"] { bottom: 2px; left: 8px; height: 44px; }
+  .crossing-main-reading { height: calc(100svh - var(--footnote-h, 2rem)); min-height: 0 !important; padding: 76px 12px 8px; display: flex; flex-direction: column; }
+  .crossing-main-reading .crossing-title { display: none; }
+  .crossing-reading { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .crossing-reading-toolbar { flex-shrink: 0; flex-wrap: nowrap; gap: 8px; margin-bottom: 8px; }
+  .crossing-reading-toolbar > button { min-height: 44px; font-size: 10px; padding: 0 10px; }
+  .crossing-reading-toolbar > span { min-width: 0; overflow-wrap: anywhere; text-align: right; letter-spacing: .04em; }
+  .journal-mobile-reader { flex: 1; min-height: 0; width: 100%; max-width: 440px; align-self: center; display: flex; flex-direction: column; gap: 6px; }
+  .journal-mobile-paper { flex: 1; min-height: 0; position: relative; }
+  .journal-mobile-paper > *, .journal-mobile-paper .notebook-cover { width: 100%; height: 100%; aspect-ratio: auto !important; }
+  .journal-leaf-mobile { padding: 20px 22px; touch-action: pan-y; user-select: text; scrollbar-gutter: stable; }
+  .journal-leaf-mobile .journal-paragraphs { gap: 12px; }
+  .journal-leaf-mobile .journal-paragraphs p { font-size: 15px; line-height: 1.8; }
+  .journal-leaf-mobile header > .font-hand { font-size: 21px; line-height: 1.25; }
+  .journal-leaf-mobile header > .font-cover { font-size: 11px; }
+  .journal-leaf-mobile header > .font-mono-ui { font-size: 10px; letter-spacing: .06em; }
+  .journal-leaf-mobile footer { margin-top: 24px; }
+  .journal-leaf-mobile footer button { min-height: 44px; width: 100%; white-space: normal; text-align: left; }
+  .journal-leaf-mobile footer .font-cover { font-size: 11px; }
+  .journal-leaf-mobile footer .font-mono-ui { font-size: 9px; white-space: normal; }
+  .journal-mobile-nav { flex-shrink: 0; display: grid; grid-template-columns: 44px minmax(0,1fr) 44px; gap: 8px; }
+  .journal-mobile-nav button, .journal-mobile-nav select { min-height: 44px; border: 1px solid #8886; border-radius: 12px; background: #f2efe6; color: #242520; }
+  .journal-mobile-nav button { font-size: 22px; }
+  .journal-mobile-nav button:disabled { opacity: .35; }
+  .journal-mobile-nav select { width: 100%; padding: 0 8px; font-size: 16px; }
+  .journal-mobile-hint { flex-shrink: 0; text-align: center; font-size: 10px; line-height: 1.4; color: #888; }
+  .crossing-reading-trails { flex-shrink: 0; margin-top: 2px; max-height: 25svh; overflow-y: auto; }
+  .crossing-reading-trails summary { padding: 5px; }
+  .crossing-main:not(.crossing-main-reading) { padding-top: 80px; }
+  .crossing-main .record-switch { flex-shrink: 0; }
+}
 
 .font-logo { font-family: 'Pacifico', cursive; }
 .font-hand { font-family: 'Caveat', cursive; }

@@ -251,11 +251,12 @@ const FootLabel = ({ children }) => (
   </p>
 );
 
-const Leaf = ({ page, char, threads, echoes, byId, onOpenEntry }) => {
+const Leaf = ({ page, char, threads, echoes, byId, onOpenEntry, mobile = false }) => {
   if (!page) return <div className="cream-page w-full h-full" />;
   const { entry, paras, first, last } = page;
   return (
-    <div className="cream-page w-full h-full px-[9%] py-[8%] flex flex-col overflow-hidden">
+    <div key={entry.id} tabIndex={mobile ? 0 : undefined} aria-label={mobile ? `Jurnal ${char.name}: ${entry.title || entry.date_label}` : undefined}
+      className={`journal-leaf cream-page w-full h-full px-[9%] py-[8%] flex flex-col ${mobile ? 'journal-leaf-mobile overflow-y-auto' : 'overflow-y-auto'}`}>
       {first && (
         <header className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 pb-2 mb-2.5 border-b border-dashed border-neutral-400/50">
           <Dot variant={char.variant} />
@@ -275,7 +276,7 @@ const Leaf = ({ page, char, threads, echoes, byId, onOpenEntry }) => {
         </header>
       )}
 
-      <div className="flex flex-col gap-1.5 min-h-0">
+      <div className="journal-paragraphs flex flex-col gap-1.5 shrink-0">
         {paras.map((p, i) => (
           <p key={i}
             className={`font-serif-read text-[10.5px] leading-[1.62] text-[#2a2620] ${p.protected ? "protected-para" : ""}`}>
@@ -285,7 +286,7 @@ const Leaf = ({ page, char, threads, echoes, byId, onOpenEntry }) => {
       </div>
 
       {last && ((threads && threads.length > 0) || (echoes && echoes.length > 0)) && (
-        <footer className="mt-auto pt-2.5 border-t border-dashed border-neutral-400/50">
+        <footer className="shrink-0 mt-auto pt-2.5 border-t border-dashed border-neutral-400/50">
           {threads && threads.length > 0 && (
             <>
               <FootLabel>others were there</FootLabel>
@@ -329,13 +330,16 @@ const JournalBook = ({ char, entries, allEntries, moments, byId, relativeTo, sta
   // cover, then the paper, then the back cover
   const views = useMemo(() => {
     const out = [{ kind: "cover" }];
-    if (isMobile) pages.forEach((p) => out.push({ kind: "single", page: p }));
+    if (isMobile) entries.forEach(entry => out.push({ kind: 'single', page: {
+      entry, first: true, last: true,
+      paras: entry.paragraphs?.length ? entry.paragraphs : [{text: entry.body || '', protected:false}],
+    }}));
     else for (let i = 0; i < pages.length; i += 2) {
       out.push({ kind: "spread", left: pages[i], right: pages[i + 1] || null });
     }
     out.push({ kind: "back" });
     return out;
-  }, [pages, isMobile]);
+  }, [pages, isMobile, entries]);
 
   // The gauge is a page of exactly the printed size, kept invisible. Reading its
   // own box — width, height, and the padding the browser resolved — leaves
@@ -359,7 +363,7 @@ const JournalBook = ({ char, entries, allEntries, moments, byId, relativeTo, sta
     const ro = new ResizeObserver(read);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [isMobile]);
 
   /* Two different claims about time, so two different lists.
      `there` is everyone else standing in the same stretch of days — the writer's
@@ -517,7 +521,7 @@ const JournalBook = ({ char, entries, allEntries, moments, byId, relativeTo, sta
     <Leaf page={page} char={char} byId={byId}
       threads={page && page.last ? threadsFor(page.entry) : null}
       echoes={page && page.last ? echoesFor(page.entry) : null}
-      onOpenEntry={onOpenEntry} />
+      onOpenEntry={onOpenEntry} mobile={isMobile} />
   );
 
   const renderView = (v) => {
@@ -665,6 +669,24 @@ const JournalBook = ({ char, entries, allEntries, moments, byId, relativeTo, sta
   };
 
   const spreadView = isSpread(views[view]);
+
+  if (isMobile) return (
+    <div ref={frameRef} className="journal-mobile-reader" data-testid="journal-mobile-reader">
+      <div className="journal-mobile-paper" data-testid="journal-book">
+        {renderView(views[view])}
+      </div>
+      <nav className="journal-mobile-nav" aria-label="Navigasi jurnal">
+        <button type="button" onClick={() => goTo(view - 1)} disabled={view === 0} aria-label="Halaman sebelumnya">←</button>
+        <select aria-label="Pilih hari jurnal" value={view} onChange={e => goTo(Number(e.target.value))}>
+          <option value={0}>Sampul · {char.name}</option>
+          {entries.map((entry, i) => <option key={entry.id} value={i + 1}>{i + 1}. {entry.date_label || entry.title || 'Jurnal'}</option>)}
+          <option value={views.length - 1}>Sampul belakang</option>
+        </select>
+        <button type="button" onClick={() => goTo(view + 1)} disabled={view === views.length - 1} aria-label="Halaman berikutnya">→</button>
+      </nav>
+      <p className="journal-mobile-hint" aria-live="polite">{view > 0 && view < views.length - 1 ? `${view} / ${entries.length} · Geser ke atas untuk membaca` : 'Gunakan panah untuk membuka buku'}</p>
+    </div>
+  );
 
   return (
     <div ref={frameRef} className="flex flex-col items-center">
