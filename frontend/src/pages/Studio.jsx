@@ -84,7 +84,8 @@ const StudioGate = ({ onUnlock }) => {
 };
 
 const Studio = () => {
-  const { notebooks, refresh } = useNotebooks();
+  const { notebooks, loading: notebooksLoading, error: notebooksError, refresh } = useNotebooks();
+  const [creatingNotebook, setCreatingNotebook] = useState(false);
   const [unlocked, setUnlocked] = useState(hasStudioKey());
   const [selectedSlug, setSelectedSlug] = useState(null);
   // The site settings arrive as arrays; the form edits them as text, one item
@@ -252,6 +253,8 @@ const Studio = () => {
   };
 
   const handleNewNotebook = async () => {
+    if (creatingNotebook) return;
+    setCreatingNotebook(true);
     try {
       const nb = await createNotebook({
         label: "New notebook",
@@ -264,6 +267,8 @@ const Studio = () => {
       toast.success("Notebook created");
     } catch {
       toast.error("Failed to create notebook");
+    } finally {
+      setCreatingNotebook(false);
     }
   };
 
@@ -340,7 +345,29 @@ const Studio = () => {
     return <StudioGate onUnlock={() => setUnlocked(true)} />;
   }
 
-  if (!selected || !coverForm) {
+  if (notebooksError) {
+    return (
+      <main className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-center">
+        <h1 className="font-cover text-xl">Studio couldn't load your notebooks</h1>
+        <p className="text-sm text-neutral-500">Check your connection and try again. Your notebooks have not been changed.</p>
+        <Button onClick={refresh} className="rounded-full">Try again</Button>
+      </main>
+    );
+  }
+
+  if (!notebooksLoading && notebooks.length === 0) {
+    return (
+      <main data-testid="studio-empty" className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-center">
+        <h1 className="font-cover text-2xl">Your studio is ready</h1>
+        <p className="max-w-md text-sm text-neutral-500">No notebooks yet. Create your first notebook to start writing. Existing content from another database needs to be imported separately.</p>
+        <Button data-testid="new-notebook-btn" onClick={handleNewNotebook} disabled={creatingNotebook} className="rounded-full gap-2">
+          <Plus size={14} /> {creatingNotebook ? "Creating…" : "Create your first notebook"}
+        </Button>
+      </main>
+    );
+  }
+
+  if (notebooksLoading || !selected || !coverForm) {
     return (
       <main className="min-h-screen flex items-center justify-center">
         <p className="font-mono-ui text-[10px] tracking-[0.2em] uppercase text-neutral-400 animate-pulse">loading studio…</p>
@@ -356,7 +383,7 @@ const Studio = () => {
           <p className="font-mono-ui text-[10px] tracking-[0.18em] uppercase text-neutral-400 mt-1">Manage your notebooks & writings</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button data-testid="new-notebook-btn" onClick={handleNewNotebook} className="rounded-full h-9 gap-1.5 text-[12px]">
+          <Button data-testid="new-notebook-btn" onClick={handleNewNotebook} disabled={creatingNotebook} className="rounded-full h-9 gap-1.5 text-[12px]">
             <Plus size={14} /> New notebook
           </Button>
           <Button
